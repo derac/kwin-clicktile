@@ -1,0 +1,9 @@
+{
+    "KPlugin": {
+        "Description": "Configure monitor grids and overlay colors",
+        "Icon": "preferences-system-windows",
+        "Id": "kwin_clicktile_config",
+        "License": "MIT",
+        "Name": "kwin-clicktile"
+    }
+}
