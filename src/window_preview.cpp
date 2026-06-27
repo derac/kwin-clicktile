@@ -9,31 +9,27 @@ namespace Tiles
 bool Effect::endNativeDragForSelection(KWin::EffectWindow *effectWindow)
 {
     QPointer<KWin::EffectWindow> trackedWindow = effectWindow;
-    if (!trackedWindow || !trackedWindow->window()) {
-        return false;
-    }
+    auto nativeWindow = [&trackedWindow]() -> KWin::Window * {
+        return trackedWindow ? trackedWindow->window() : nullptr;
+    };
+    auto nativeDragFinished = [](KWin::Window *window) {
+        return window && !window->isInteractiveMove() && !window->isInteractiveResize();
+    };
 
-    KWin::Window *window = trackedWindow->window();
-    if (!window->isInteractiveMove() || window->isInteractiveResize()) {
+    KWin::Window *window = nativeWindow();
+    if (!window || !window->isInteractiveMove() || window->isInteractiveResize()) {
         return false;
     }
 
     window->endInteractiveMoveResize();
-    if (!trackedWindow || !trackedWindow->window()) {
+    window = nativeWindow();
+    if (!window) {
         return false;
     }
 
-    window = trackedWindow->window();
-    if (window->isInteractiveMove() || window->isInteractiveResize()) {
+    if (!nativeDragFinished(window)) {
         window->cancelInteractiveMoveResize();
-    }
-
-    if (!trackedWindow || !trackedWindow->window()) {
-        return false;
-    }
-
-    window = trackedWindow->window();
-    if (window->isInteractiveMove() || window->isInteractiveResize()) {
+        window = nativeWindow();
         return false;
     }
 
