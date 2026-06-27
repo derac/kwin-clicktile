@@ -5,8 +5,6 @@
 #include "input.h"
 
 #include <QPointer>
-#include <QSet>
-#include <QString>
 #include <memory>
 #include <optional>
 
@@ -70,17 +68,17 @@ private:
     // Grid selection and window placement.
     bool beginSelection(const QPointF &point);
     void updateSelection(const QPointF &point);
-    void finishSelection(const QPointF &point, const QString &reason);
-    void cancelSelection(const QString &reason);
+    void finishSelection(const QPointF &point);
+    void cancelSelection();
     void clearSelectionState();
-    void endNativeDragForSelection(const QString &reason);
-    void moveWindowToSelection(const QString &reason);
+    void endNativeDragForSelection();
+    void moveWindowToSelection();
 
     // Overlay rendering.
     void updateOverlayViews();
-    void drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion);
-    bool drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color);
-    int drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
+    void drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
+    void drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color);
+    void drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
 
     // Output/grid helpers.
     KWin::LogicalOutput *outputForPoint(const QPointF &point) const;
@@ -91,16 +89,6 @@ private:
     bool shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const;
     std::optional<KWin::RectF> currentSelectionRect() const;
 
-    // Diagnostics.
-    void log(const QString &message);
-    QString describeOutput(KWin::LogicalOutput *output) const;
-    QString describeWindow(KWin::EffectWindow *window) const;
-    QString describeRect(const KWin::RectF &rect) const;
-    QString describeButtons(Qt::MouseButtons buttons) const;
-    QString describeButton(Qt::MouseButton button) const;
-    QString describeButtonState(KWin::PointerButtonState state) const;
-
-    QSet<KWin::EffectWindow *> m_wiredWindows;
     QPointer<KWin::EffectWindow> m_dragWindow;
     QPointer<KWin::EffectWindow> m_snapWindow;
     QPointer<KWin::LogicalOutput> m_anchorOutput;
@@ -114,8 +102,6 @@ private:
     std::optional<TileSelection> m_selection;
     bool m_snapActive = false;
     bool m_suppressNextRightRelease = false;
-    bool m_loggedNoOverlayRenderer = false;
-    bool m_loggedOverlayPaintForSelection = false;
 };
 
 } // namespace Tiles

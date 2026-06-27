@@ -33,24 +33,17 @@ bool rectsIntersect(const KWin::RectF &first, const KWin::RectF &second)
         && first.bottom() > second.top();
 }
 
-QString cellString(const Tile &cell)
-{
-    return QStringLiteral("%1,%2").arg(cell.column).arg(cell.row);
-}
-
 } // namespace
 
 bool Effect::beginSelection(const QPointF &point)
 {
     if (!m_dragWindow || !m_dragWindow->window()) {
-        log(QStringLiteral("selection_begin_failed reason=no_drag_window"));
         return false;
     }
 
     m_snapWindow = m_dragWindow;
     m_anchorOutput = outputForPoint(point);
     if (!m_anchorOutput) {
-        log(QStringLiteral("selection_begin_failed reason=no_output"));
         clearSelectionState();
         return false;
     }
@@ -61,25 +54,9 @@ bool Effect::beginSelection(const QPointF &point)
     const Tile anchor = cellAt(m_anchorOutput, m_anchorSettings, point);
     m_selection = TileSelection{anchor, anchor};
     m_snapActive = true;
-    m_loggedNoOverlayRenderer = false;
-    m_loggedOverlayPaintForSelection = false;
-    endNativeDragForSelection(QStringLiteral("selection_begin"));
+    endNativeDragForSelection();
 
-    log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_token=%4 focus_token=%5 anchor_grid=%6x%7 focus_grid=%8x%9 anchor=%10 point=%11,%12")
-            .arg(describeWindow(m_snapWindow),
-                 describeOutput(m_anchorOutput),
-                 describeOutput(m_activeOutput),
-                 m_anchorSettings.token,
-                 m_activeSettings.token)
-            .arg(m_anchorSettings.grid.columns)
-            .arg(m_anchorSettings.grid.rows)
-            .arg(m_activeSettings.grid.columns)
-            .arg(m_activeSettings.grid.rows)
-            .arg(cellString(anchor))
-            .arg(point.x(), 0, 'f', 1)
-            .arg(point.y(), 0, 'f', 1));
-
-    moveWindowToSelection(QStringLiteral("selection_begin"));
+    moveWindowToSelection();
     updateOverlayViews();
     return true;
 }
@@ -103,7 +80,7 @@ void Effect::updateSelection(const QPointF &point)
         m_anchorSettings = nextSettings;
         m_activeOutput = output;
         m_activeSettings = nextSettings;
-        moveWindowToSelection(QStringLiteral("selection_reseed"));
+        moveWindowToSelection();
         updateOverlayViews();
         return;
     }
@@ -118,55 +95,28 @@ void Effect::updateSelection(const QPointF &point)
     m_activeOutput = output;
     m_activeSettings = nextSettings;
     m_selection = next;
-    if (outputChanged) {
-        m_loggedOverlayPaintForSelection = false;
-    }
-
-    const auto rect = currentSelectionRect();
-    log(QStringLiteral("selection_update anchor_output=%1 focus_output=%2 anchor_token=%3 focus_token=%4 anchor_grid=%5x%6 focus_grid=%7x%8 anchor=%9 focus=%10 cross_output=%11 rect=%12")
-            .arg(describeOutput(m_anchorOutput),
-                 describeOutput(m_activeOutput),
-                 m_anchorSettings.token,
-                 m_activeSettings.token)
-            .arg(m_anchorSettings.grid.columns)
-            .arg(m_anchorSettings.grid.rows)
-            .arg(m_activeSettings.grid.columns)
-            .arg(m_activeSettings.grid.rows)
-            .arg(cellString(m_selection->anchor),
-                 cellString(m_selection->focus),
-                 m_anchorOutput == m_activeOutput ? QStringLiteral("false") : QStringLiteral("true"),
-                 rect ? describeRect(*rect) : QStringLiteral("<none>")));
-    moveWindowToSelection(QStringLiteral("selection_update"));
+    moveWindowToSelection();
     updateOverlayViews();
 }
 
-void Effect::finishSelection(const QPointF &point, const QString &reason)
+void Effect::finishSelection(const QPointF &point)
 {
     if (!m_snapActive) {
         return;
     }
 
     updateSelection(point);
-    const auto rect = currentSelectionRect();
-    log(QStringLiteral("selection_finish reason=%1 window=%2 anchor_output=%3 focus_output=%4 rect=%5")
-            .arg(reason,
-                 describeWindow(m_snapWindow),
-                 describeOutput(m_anchorOutput),
-                 describeOutput(m_activeOutput),
-                 rect ? describeRect(*rect) : QStringLiteral("<none>")));
-
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();
 }
 
-void Effect::cancelSelection(const QString &reason)
+void Effect::cancelSelection()
 {
     if (!m_snapActive && !m_snapWindow) {
         return;
     }
 
-    log(QStringLiteral("selection_cancel reason=%1 window=%2").arg(reason, describeWindow(m_snapWindow)));
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();

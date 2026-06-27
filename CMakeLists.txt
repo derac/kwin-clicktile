@@ -24,7 +24,6 @@ set(kwin_clicktile_SOURCES
     src/input.cpp
     src/input_filter.cpp
     src/input_filter.h
-    src/log.cpp
     src/overlay.cpp
     src/settings.cpp
     src/settings.h

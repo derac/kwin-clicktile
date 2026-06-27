@@ -71,5 +71,4 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.unloadEffect kwin_clicktile
 - `src/tiles.cpp`: tile selection, output geometry, and final placement
 - `src/overlay.cpp`: passive paint-screen grid overlay
 - `src/settings.*`: KWin config keys, defaults, and monitor settings
-- `src/log.cpp`: journald diagnostics
 - `kcm/`: System Settings module
