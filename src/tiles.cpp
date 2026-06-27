@@ -66,6 +66,8 @@ bool Effect::beginSelection(const QPointF &point)
     m_snapActive = true;
     m_loggedNoOverlayRenderer = false;
     m_loggedOverlayPaintForSelection = false;
+    beginLivePreview();
+    endNativeDragForLivePreview(QStringLiteral("selection_begin"));
 
     log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_token=%4 focus_token=%5 anchor_grid=%6x%7 focus_grid=%8x%9 anchor=%10 point=%11,%12")
             .arg(describeWindow(m_snapWindow),
@@ -81,6 +83,7 @@ bool Effect::beginSelection(const QPointF &point)
             .arg(point.x(), 0, 'f', 1)
             .arg(point.y(), 0, 'f', 1));
 
+    updateLivePreview(QStringLiteral("selection_begin"));
     updateOverlayViews();
     return true;
 }
@@ -104,6 +107,7 @@ void Effect::updateSelection(const QPointF &point)
         m_anchorSettings = nextSettings;
         m_activeOutput = output;
         m_activeSettings = nextSettings;
+        updateLivePreview(QStringLiteral("selection_reseed"));
         updateOverlayViews();
         return;
     }
@@ -136,6 +140,7 @@ void Effect::updateSelection(const QPointF &point)
                  cellString(m_selection->focus),
                  m_anchorOutput == m_activeOutput ? QStringLiteral("false") : QStringLiteral("true"),
                  rect ? describeRect(*rect) : QStringLiteral("<none>")));
+    updateLivePreview(QStringLiteral("selection_update"));
     updateOverlayViews();
 }
 
@@ -158,6 +163,7 @@ void Effect::finishSelection(const QPointF &point, const QString &reason)
         queueFinalSnap(m_snapWindow, *rect, reason);
     }
 
+    finishLivePreview(false, reason);
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();
@@ -179,6 +185,7 @@ void Effect::cancelSelection(const QString &reason)
     }
 
     log(QStringLiteral("selection_cancel reason=%1 window=%2").arg(reason, describeWindow(m_snapWindow)));
+    finishLivePreview(true, reason);
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();

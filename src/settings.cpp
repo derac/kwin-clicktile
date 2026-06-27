@@ -97,6 +97,29 @@ void writeGridForToken(KConfigGroup &group, const QString &token, const OutputSe
     group.writeEntry(outputLabelEntry(token), settings.label, KConfigBase::Notify);
 }
 
+QColor migrateLegacyBorderColor(const QColor &color)
+{
+    const QColor legacyWhiteDefault(255, 255, 255, 135);
+    const QColor legacyPaleBlueDefault(143, 193, 255, 42);
+    const QColor legacyBlueDefault(42, 143, 193, 120);
+    const QColor legacyStrongBlueDefault(24, 124, 255, 170);
+    const bool whiteish = color.isValid()
+        && color.alpha() > 0
+        && color.red() >= 220
+        && color.green() >= 220
+        && color.blue() >= 220;
+
+    if (whiteish
+        || color == legacyWhiteDefault
+        || color == legacyPaleBlueDefault
+        || color == legacyBlueDefault
+        || color == legacyStrongBlueDefault) {
+        return defaultOverlayColors().selectionBorderColor;
+    }
+
+    return color;
+}
+
 } // namespace
 
 QString effectConfigGroupName()
@@ -164,7 +187,7 @@ OverlayColors defaultOverlayColors()
     return OverlayColors{
         QColor(80, 200, 255, 58),
         QColor(80, 160, 255, 26),
-        QColor(42, 143, 193, 120),
+        QColor(96, 190, 255, 205),
     };
 }
 
@@ -181,7 +204,7 @@ OverlayColors readOverlayColors(const KSharedConfigPtr &config)
     return OverlayColors{
         group.readEntry("GridColor", defaults.gridColor),
         group.readEntry("SelectionColor", defaults.selectionColor),
-        group.readEntry("SelectionBorderColor", defaults.selectionBorderColor),
+        migrateLegacyBorderColor(group.readEntry("SelectionBorderColor", defaults.selectionBorderColor)),
     };
 }
 

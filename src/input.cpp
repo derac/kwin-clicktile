@@ -15,6 +15,11 @@ bool Effect::filterPointerMotion(KWin::PointerMotionEvent *event)
 
     if (m_snapActive) {
         updateSelection(event->position);
+        return true;
+    }
+
+    if (m_dragWindow && m_pendingSnapWindow == m_dragWindow) {
+        return true;
     }
 
     return false;
@@ -88,6 +93,7 @@ void Effect::wireWindow(KWin::EffectWindow *window)
 
     m_wiredWindows.insert(window);
     connect(window, &KWin::EffectWindow::windowStartUserMovedResized, this, &Effect::onMoveResizeStarted);
+    connect(window, &KWin::EffectWindow::windowStepUserMovedResized, this, &Effect::onMoveResizeStepped);
     connect(window, &KWin::EffectWindow::windowFinishUserMovedResized, this, &Effect::onMoveResizeFinished);
     log(QStringLiteral("wire_window window=%1").arg(describeWindow(window)));
 }
@@ -114,6 +120,10 @@ void Effect::unwireWindow(KWin::EffectWindow *window)
 void Effect::onMoveResizeStarted(KWin::EffectWindow *window)
 {
     m_dragWindow = window;
+    m_dragGeometry = window ? std::optional<KWin::RectF>(window->frameGeometry()) : std::nullopt;
+    m_livePreviewWindow.clear();
+    m_livePreviewRestoreRect.reset();
+    m_livePreviewLastRect.reset();
     m_sawRightPress = false;
 
     const QString mode = window && window->isUserResize()
@@ -128,6 +138,23 @@ void Effect::onMoveResizeStarted(KWin::EffectWindow *window)
             .arg(KWin::effects->cursorPos().y(), 0, 'f', 1));
 }
 
+void Effect::onMoveResizeStepped(KWin::EffectWindow *window, const KWin::RectF &geometry)
+{
+    if (m_applyingLivePreviewMove) {
+        return;
+    }
+
+    if (window != m_dragWindow) {
+        return;
+    }
+
+    m_dragGeometry = geometry;
+    if (m_snapActive) {
+        updateLivePreview(QStringLiteral("native_drag_step"));
+        KWin::effects->addRepaintFull();
+    }
+}
+
 void Effect::onMoveResizeFinished(KWin::EffectWindow *window)
 {
     log(QStringLiteral("drag_finish window=%1 geometry=%2 saw_right=%3 snap_active=%4")
@@ -138,6 +165,7 @@ void Effect::onMoveResizeFinished(KWin::EffectWindow *window)
 
     if (window == m_dragWindow) {
         m_dragWindow.clear();
+        m_dragGeometry.reset();
     }
 
     if (window == m_pendingSnapWindow) {

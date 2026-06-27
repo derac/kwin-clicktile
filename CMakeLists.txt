@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(kwin_clicktile VERSION 0.6.8)
+project(kwin_clicktile VERSION 0.6.9)
 
 set(QT_MIN_VERSION "6.6.0")
 set(QT_MAJOR_VERSION 6)
@@ -29,6 +29,7 @@ set(kwin_clicktile_SOURCES
     src/settings.cpp
     src/settings.h
     src/tiles.cpp
+    src/window_preview.cpp
     src/main.cpp
 )
 
