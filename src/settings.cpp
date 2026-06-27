@@ -92,9 +92,9 @@ TileGrid defaultGridForGeometry(const QRectF &geometry)
 OverlayColors defaultOverlayColors()
 {
     return OverlayColors{
-        QColor(80, 200, 255, 75),
-        QColor(80, 160, 255, 28),
-        QColor(255, 255, 255, 135),
+        QColor(80, 200, 255, 58),
+        QColor(80, 160, 255, 26),
+        QColor(42, 143, 193, 120),
     };
 }
 

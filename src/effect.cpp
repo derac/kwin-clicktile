@@ -13,7 +13,7 @@ namespace Tiles
 namespace
 {
 
-constexpr const char *BuildTag = "kwin-clicktile_build=0.6.5";
+constexpr const char *BuildTag = "kwin-clicktile_build=0.6.6";
 
 } // namespace
 

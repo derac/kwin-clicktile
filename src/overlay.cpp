@@ -132,18 +132,27 @@ QString transformName(KWin::OutputTransform transform)
 
 QString overlayMappingName()
 {
-    return QStringLiteral("texture_projection");
+    return QStringLiteral("scaled_projection");
 }
 
 KWin::RectF mapOverlayRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect)
 {
-    // RenderViewport::projectionMatrix() applies the render target transform.
-    // Feed untransformed render-target texture coordinates, matching KWin's
-    // built-in GL effects.
-    return viewport.mapToRenderTargetTexture(rect);
+    // KWin's effect projection matrix is built from the output's global scaled
+    // render rect. Keep the global logical offset when scaling, otherwise
+    // non-origin outputs draw at the wrong place.
+    return rect.scaled(viewport.scale());
 }
 
 } // namespace
+
+void Effect::prePaintScreen(KWin::ScreenPrePaintData &data)
+{
+    if (m_snapActive) {
+        data.mask |= KWin::Effect::PAINT_SCREEN_TRANSFORMED;
+    }
+
+    KWin::effects->prePaintScreen(data);
+}
 
 void Effect::paintScreen(const KWin::RenderTarget &renderTarget,
                          const KWin::RenderViewport &viewport,
@@ -160,6 +169,15 @@ void Effect::paintScreen(const KWin::RenderTarget &renderTarget,
     drawOverlay(renderTarget, viewport, screen, mask, deviceRegion);
 }
 
+void Effect::postPaintScreen()
+{
+    if (m_snapActive) {
+        KWin::effects->addRepaintFull();
+    }
+
+    KWin::effects->postPaintScreen();
+}
+
 void Effect::updateOverlayViews()
 {
     if (m_snapActive) {
@@ -169,6 +187,8 @@ void Effect::updateOverlayViews()
 
 void Effect::drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion)
 {
+    Q_UNUSED(renderTarget)
+
     if (!KWin::effects->isOpenGLCompositing()) {
         if (!m_loggedNoOverlayRenderer) {
             m_loggedNoOverlayRenderer = true;
@@ -241,9 +261,8 @@ void Effect::drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::Ren
     bool shaderBound = false;
     GLint programDuringDraw = 0;
     {
-        KWin::ShaderBinder binder(KWin::ShaderTrait::UniformColor | KWin::ShaderTrait::TransformColorspace);
+        KWin::ShaderBinder binder(KWin::ShaderTrait::UniformColor);
         binder.shader()->setUniform(KWin::GLShader::Mat4Uniform::ModelViewProjectionMatrix, viewport.projectionMatrix());
-        binder.shader()->setColorspaceUniforms(KWin::ColorDescription::sRGB, renderTarget.colorDescription(), KWin::RenderingIntent::Perceptual);
         shaderBound = KWin::ShaderManager::instance()->getBoundShader() != nullptr;
         programDuringDraw = glInteger(GL_CURRENT_PROGRAM);
         rectanglesDrawn = drawGridGeometry(viewport, screen);
@@ -279,9 +298,9 @@ int Effect::drawGridGeometry(const KWin::RenderViewport &viewport, KWin::Logical
 
     int rectanglesDrawn = 0;
     const qreal line = std::max<qreal>(1.0, 1.0 / viewport.scale());
-    const QColor gridColor = minimumAlpha(m_colors.gridColor, 0.28);
-    const QColor selectionColor = minimumAlpha(m_colors.selectionColor, 0.18);
-    const QColor borderColor = minimumAlpha(m_colors.selectionBorderColor, 0.45);
+    const QColor gridColor = minimumAlpha(m_colors.gridColor, 0.14);
+    const QColor selectionColor = minimumAlpha(m_colors.selectionColor, 0.08);
+    const QColor borderColor = minimumAlpha(m_colors.selectionBorderColor, 0.24);
 
     if (const auto rect = currentSelectionRect()) {
         rectanglesDrawn += drawGlRect(viewport, *rect, selectionColor) ? 1 : 0;

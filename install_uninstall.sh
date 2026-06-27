@@ -233,7 +233,7 @@ stale_kwin_config_entries() {
         return
     fi
 
-    grep -E '^(\[Effect-(clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp|kwin-clicktile|snapdragin)\]|\[Script-(kwin-clicktile|kwin-clicktile-smoke|clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp)\]|(clicktile_mvpEnabled|clicktile_snap_mvpEnabled|clicktile_filter_mvpEnabled|kwin-clicktileEnabled|kwin-clicktile-smokeEnabled|snapdraginEnabled)=)' "$kwinrc_file" 2>/dev/null || true
+    grep -E '^(\[Effect-(clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp|snapdragin)\]|\[Script-(kwin-clicktile|kwin-clicktile-smoke|clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp)\]|(clicktile_mvpEnabled|clicktile_snap_mvpEnabled|clicktile_filter_mvpEnabled|kwin-clicktileEnabled|kwin-clicktile-smokeEnabled|snapdraginEnabled)=)' "$kwinrc_file" 2>/dev/null || true
 }
 
 cleanup_stale_kwin_config() {
@@ -249,7 +249,6 @@ cleanup_stale_kwin_config() {
             skip = ($0 == "[Effect-clicktile_mvp]" ||
                     $0 == "[Effect-clicktile_snap_mvp]" ||
                     $0 == "[Effect-clicktile_filter_mvp]" ||
-                    $0 == "[Effect-kwin-clicktile]" ||
                     $0 == "[Effect-snapdragin]" ||
                     $0 == "[Script-kwin-clicktile]" ||
                     $0 == "[Script-kwin-clicktile-smoke]" ||

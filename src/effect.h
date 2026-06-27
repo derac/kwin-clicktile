@@ -44,11 +44,13 @@ public:
     static bool enabledByDefault();
 
     void reconfigure(ReconfigureFlags flags) override;
+    void prePaintScreen(KWin::ScreenPrePaintData &data) override;
     void paintScreen(const KWin::RenderTarget &renderTarget,
                      const KWin::RenderViewport &viewport,
                      int mask,
                      const KWin::Region &deviceRegion,
                      KWin::LogicalOutput *screen) override;
+    void postPaintScreen() override;
     bool isActive() const override;
     bool blocksDirectScanout() const override;
 
