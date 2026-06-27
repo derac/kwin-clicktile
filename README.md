@@ -7,6 +7,8 @@ titlebar, right-click starts a tile selection overlay. Move across the monitor
 grid, then release left click or right-click again to place the window into the
 selected tile range.
 
+Takes inspiration from the Windows program WindowGrid.
+
 <img width="500" alt="Demo" src="https://github.com/user-attachments/assets/131b0c99-64f8-408a-83e4-45169a9b7a3a" />
 <img width="500" alt="Settings" src="https://github.com/user-attachments/assets/e2c4ebbd-a7a1-49fb-a5fc-2a256c4a358e" />
 
@@ -41,16 +43,7 @@ System Settings > Window Management > Desktop Effects > kwin-clicktile
 Settings:
 
 - Per-monitor columns and rows
-- Portrait monitors default to `1x3`
-- Landscape monitors default to `2x2`
 - Overlay grid, selection fill, and selection border colors
-
-## Test
-
-1. Drag a normal window by its titlebar with left mouse.
-2. Press right mouse while still holding left to show the grid.
-3. Move across the grid.
-4. Release left mouse, or press right mouse again, to place the window.
 
 Emergency unload:
 
