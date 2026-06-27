@@ -75,9 +75,9 @@ private:
 
     // Overlay rendering.
     void updateOverlayViews();
-    void drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
-    void drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color) const;
-    void drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
+    void drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion);
+    bool drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color);
+    int drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
 
     // Output/grid helpers.
     KWin::LogicalOutput *outputForPoint(const QPointF &point) const;
