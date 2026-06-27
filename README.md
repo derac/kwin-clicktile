@@ -7,6 +7,9 @@ titlebar, right-click starts a tile selection overlay. Move across the monitor
 grid, then release left click or right-click again to place the window into the
 selected tile range.
 
+<img width="500" alt="Demo" src="https://github.com/user-attachments/assets/131b0c99-64f8-408a-83e4-45169a9b7a3a" />
+<img width="500" alt="Settings" src="https://github.com/user-attachments/assets/e2c4ebbd-a7a1-49fb-a5fc-2a256c4a358e" />
+
 ## Build And Toggle
 
 Use the root script for both install and uninstall:
