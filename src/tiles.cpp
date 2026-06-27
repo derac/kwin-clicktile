@@ -3,9 +3,6 @@
 #include "core/output.h"
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
-#include "window.h"
-
-#include <QTimer>
 
 #include <algorithm>
 #include <cmath>
@@ -66,8 +63,7 @@ bool Effect::beginSelection(const QPointF &point)
     m_snapActive = true;
     m_loggedNoOverlayRenderer = false;
     m_loggedOverlayPaintForSelection = false;
-    beginLivePreview();
-    endNativeDragForLivePreview(QStringLiteral("selection_begin"));
+    endNativeDragForSelection(QStringLiteral("selection_begin"));
 
     log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_token=%4 focus_token=%5 anchor_grid=%6x%7 focus_grid=%8x%9 anchor=%10 point=%11,%12")
             .arg(describeWindow(m_snapWindow),
@@ -83,7 +79,7 @@ bool Effect::beginSelection(const QPointF &point)
             .arg(point.x(), 0, 'f', 1)
             .arg(point.y(), 0, 'f', 1));
 
-    updateLivePreview(QStringLiteral("selection_begin"));
+    moveWindowToSelection(QStringLiteral("selection_begin"));
     updateOverlayViews();
     return true;
 }
@@ -107,7 +103,7 @@ void Effect::updateSelection(const QPointF &point)
         m_anchorSettings = nextSettings;
         m_activeOutput = output;
         m_activeSettings = nextSettings;
-        updateLivePreview(QStringLiteral("selection_reseed"));
+        moveWindowToSelection(QStringLiteral("selection_reseed"));
         updateOverlayViews();
         return;
     }
@@ -140,7 +136,7 @@ void Effect::updateSelection(const QPointF &point)
                  cellString(m_selection->focus),
                  m_anchorOutput == m_activeOutput ? QStringLiteral("false") : QStringLiteral("true"),
                  rect ? describeRect(*rect) : QStringLiteral("<none>")));
-    updateLivePreview(QStringLiteral("selection_update"));
+    moveWindowToSelection(QStringLiteral("selection_update"));
     updateOverlayViews();
 }
 
@@ -159,23 +155,9 @@ void Effect::finishSelection(const QPointF &point, const QString &reason)
                  describeOutput(m_activeOutput),
                  rect ? describeRect(*rect) : QStringLiteral("<none>")));
 
-    if (rect && m_snapWindow) {
-        queueFinalSnap(m_snapWindow, *rect, reason);
-    }
-
-    finishLivePreview(false, reason);
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();
-
-    if (!m_dragWindow || m_dragWindow != m_pendingSnapWindow) {
-        schedulePendingSnap(QStringLiteral("selection_finish_without_active_native_drag"));
-    } else {
-        log(QStringLiteral("snap_apply_deferred reason=%1 waiting_for_native_drag_finish window=%2 target=%3")
-                .arg(reason,
-                     describeWindow(m_pendingSnapWindow),
-                     m_pendingSnapRect ? describeRect(*m_pendingSnapRect) : QStringLiteral("<none>")));
-    }
 }
 
 void Effect::cancelSelection(const QString &reason)
@@ -185,7 +167,6 @@ void Effect::cancelSelection(const QString &reason)
     }
 
     log(QStringLiteral("selection_cancel reason=%1 window=%2").arg(reason, describeWindow(m_snapWindow)));
-    finishLivePreview(true, reason);
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();
@@ -200,81 +181,6 @@ void Effect::clearSelectionState()
     m_selection.reset();
     m_anchorSettings = OutputSettings{};
     m_activeSettings = OutputSettings{};
-}
-
-void Effect::queueFinalSnap(KWin::EffectWindow *window, const KWin::RectF &rect, const QString &reason)
-{
-    m_pendingSnapWindow = window;
-    m_pendingSnapRect = rect;
-    m_pendingSnapReason = reason;
-    log(QStringLiteral("snap_apply_queued reason=%1 window=%2 target=%3")
-            .arg(reason,
-                 describeWindow(window),
-                 describeRect(rect)));
-}
-
-void Effect::schedulePendingSnap(const QString &reason)
-{
-    if (!m_pendingSnapWindow || !m_pendingSnapRect) {
-        return;
-    }
-
-    const QPointer<KWin::EffectWindow> window = m_pendingSnapWindow;
-    const KWin::RectF rect = *m_pendingSnapRect;
-    const QString queuedReason = m_pendingSnapReason;
-    m_pendingSnapWindow.clear();
-    m_pendingSnapRect.reset();
-    m_pendingSnapReason.clear();
-
-    log(QStringLiteral("snap_apply_scheduled reason=%1 queued_reason=%2 window=%3 target=%4")
-            .arg(reason,
-                 queuedReason,
-                 describeWindow(window),
-                 describeRect(rect)));
-
-    QTimer::singleShot(0, this, [this, window, rect, queuedReason] {
-        applySnapRect(window, rect, queuedReason + QStringLiteral(":settle0"));
-    });
-    QTimer::singleShot(80, this, [this, window, rect, queuedReason] {
-        applySnapRect(window, rect, queuedReason + QStringLiteral(":settle80"));
-    });
-}
-
-void Effect::applySnapRect(KWin::EffectWindow *effectWindow, const KWin::RectF &rect, const QString &reason)
-{
-    if (!effectWindow) {
-        log(QStringLiteral("snap_resize_skip reason=no_effect_window apply_reason=%1 target=%2")
-                .arg(reason, describeRect(rect)));
-        return;
-    }
-
-    if (!effectWindow->window()) {
-        log(QStringLiteral("snap_resize_skip reason=no_core_window apply_reason=%1 window=%2 target=%3")
-                .arg(reason,
-                     describeWindow(effectWindow),
-                     describeRect(rect)));
-        return;
-    }
-
-    KWin::Window *window = effectWindow->window();
-    const KWin::RectF before = effectWindow->frameGeometry();
-    log(QStringLiteral("snap_resize_attempt apply_reason=%1 window=%2 before=%3 target=%4")
-            .arg(reason,
-                 describeWindow(effectWindow),
-                 describeRect(before),
-                 describeRect(rect)));
-
-    window->setMaximize(false, false);
-    window->setQuickTileMode(KWin::QuickTileMode{KWin::QuickTileFlag::None}, rect.center());
-    window->moveResize(rect);
-
-    const KWin::RectF after = effectWindow->frameGeometry();
-    log(QStringLiteral("snap_resize_result apply_reason=%1 window=%2 target=%3 after=%4 changed=%5")
-            .arg(reason,
-                 describeWindow(effectWindow),
-                 describeRect(rect),
-                 describeRect(after),
-                 after == before ? QStringLiteral("false") : QStringLiteral("true")));
 }
 
 KWin::LogicalOutput *Effect::outputForPoint(const QPointF &point) const

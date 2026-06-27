@@ -67,19 +67,14 @@ private:
     void onMoveResizeStepped(KWin::EffectWindow *window, const KWin::RectF &geometry);
     void onMoveResizeFinished(KWin::EffectWindow *window);
 
-    // Grid selection and deferred window placement.
+    // Grid selection and window placement.
     bool beginSelection(const QPointF &point);
     void updateSelection(const QPointF &point);
     void finishSelection(const QPointF &point, const QString &reason);
     void cancelSelection(const QString &reason);
     void clearSelectionState();
-    void queueFinalSnap(KWin::EffectWindow *window, const KWin::RectF &rect, const QString &reason);
-    void schedulePendingSnap(const QString &reason);
-    void applySnapRect(KWin::EffectWindow *window, const KWin::RectF &rect, const QString &reason);
-    void beginLivePreview();
-    void endNativeDragForLivePreview(const QString &reason);
-    void updateLivePreview(const QString &reason);
-    void finishLivePreview(bool restore, const QString &reason);
+    void endNativeDragForSelection(const QString &reason);
+    void moveWindowToSelection(const QString &reason);
 
     // Overlay rendering.
     void updateOverlayViews();
@@ -108,8 +103,6 @@ private:
     QSet<KWin::EffectWindow *> m_wiredWindows;
     QPointer<KWin::EffectWindow> m_dragWindow;
     QPointer<KWin::EffectWindow> m_snapWindow;
-    QPointer<KWin::EffectWindow> m_pendingSnapWindow;
-    QPointer<KWin::EffectWindow> m_livePreviewWindow;
     QPointer<KWin::LogicalOutput> m_anchorOutput;
     QPointer<KWin::LogicalOutput> m_activeOutput;
     std::unique_ptr<InputFilter> m_inputFilter;
@@ -119,15 +112,8 @@ private:
     OutputSettings m_anchorSettings;
     OutputSettings m_activeSettings;
     std::optional<TileSelection> m_selection;
-    std::optional<KWin::RectF> m_dragGeometry;
-    std::optional<KWin::RectF> m_pendingSnapRect;
-    std::optional<KWin::RectF> m_livePreviewRestoreRect;
-    std::optional<KWin::RectF> m_livePreviewLastRect;
-    QString m_pendingSnapReason;
-    bool m_sawRightPress = false;
     bool m_snapActive = false;
     bool m_suppressNextRightRelease = false;
-    bool m_applyingLivePreviewMove = false;
     bool m_loggedNoOverlayRenderer = false;
     bool m_loggedOverlayPaintForSelection = false;
 };

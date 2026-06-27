@@ -18,10 +18,6 @@ bool Effect::filterPointerMotion(KWin::PointerMotionEvent *event)
         return true;
     }
 
-    if (m_dragWindow && m_pendingSnapWindow == m_dragWindow) {
-        return true;
-    }
-
     return false;
 }
 
@@ -67,7 +63,6 @@ bool Effect::filterPointerButton(KWin::PointerButtonEvent *event)
     }
 
     if (event->button == Qt::RightButton && event->state == KWin::PointerButtonState::Pressed) {
-        m_sawRightPress = true;
         const bool leftReported = event->buttons.testFlag(Qt::LeftButton);
         log(QStringLiteral("selection_trigger button=right drag_window=%1 left_reported=%2 buttons=%3")
                 .arg(describeWindow(m_dragWindow),
@@ -120,11 +115,6 @@ void Effect::unwireWindow(KWin::EffectWindow *window)
 void Effect::onMoveResizeStarted(KWin::EffectWindow *window)
 {
     m_dragWindow = window;
-    m_dragGeometry = window ? std::optional<KWin::RectF>(window->frameGeometry()) : std::nullopt;
-    m_livePreviewWindow.clear();
-    m_livePreviewRestoreRect.reset();
-    m_livePreviewLastRect.reset();
-    m_sawRightPress = false;
 
     const QString mode = window && window->isUserResize()
         ? QStringLiteral("resize")
@@ -138,38 +128,27 @@ void Effect::onMoveResizeStarted(KWin::EffectWindow *window)
             .arg(KWin::effects->cursorPos().y(), 0, 'f', 1));
 }
 
-void Effect::onMoveResizeStepped(KWin::EffectWindow *window, const KWin::RectF &geometry)
+void Effect::onMoveResizeStepped(KWin::EffectWindow *window, const KWin::RectF &)
 {
-    if (m_applyingLivePreviewMove) {
-        return;
-    }
-
     if (window != m_dragWindow) {
         return;
     }
 
-    m_dragGeometry = geometry;
     if (m_snapActive) {
-        updateLivePreview(QStringLiteral("native_drag_step"));
+        moveWindowToSelection(QStringLiteral("native_drag_step"));
         KWin::effects->addRepaintFull();
     }
 }
 
 void Effect::onMoveResizeFinished(KWin::EffectWindow *window)
 {
-    log(QStringLiteral("drag_finish window=%1 geometry=%2 saw_right=%3 snap_active=%4")
+    log(QStringLiteral("drag_finish window=%1 geometry=%2 snap_active=%3")
             .arg(describeWindow(window),
                  window ? describeRect(window->frameGeometry()) : QStringLiteral("<none>"),
-                 m_sawRightPress ? QStringLiteral("true") : QStringLiteral("false"),
                  m_snapActive ? QStringLiteral("true") : QStringLiteral("false")));
 
     if (window == m_dragWindow) {
         m_dragWindow.clear();
-        m_dragGeometry.reset();
-    }
-
-    if (window == m_pendingSnapWindow) {
-        schedulePendingSnap(QStringLiteral("native_drag_finish"));
     }
 }
 
