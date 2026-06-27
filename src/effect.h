@@ -1,7 +1,7 @@
 #pragma once
 
 #include "settings.h"
-#include "effect/quickeffect.h"
+#include "effect/effect.h"
 #include "input.h"
 
 #include <QFile>
@@ -32,7 +32,7 @@ struct TileSelection {
     bool operator==(const TileSelection &) const = default;
 };
 
-class Effect : public KWin::QuickSceneEffect
+class Effect : public KWin::Effect
 {
     Q_OBJECT
 
@@ -44,11 +44,13 @@ public:
     static bool enabledByDefault();
 
     void reconfigure(ReconfigureFlags flags) override;
+    void paintScreen(const KWin::RenderTarget &renderTarget,
+                     const KWin::RenderViewport &viewport,
+                     int mask,
+                     const KWin::Region &deviceRegion,
+                     KWin::LogicalOutput *screen) override;
     bool isActive() const override;
     bool blocksDirectScanout() const override;
-
-protected:
-    QVariantMap initialProperties(KWin::LogicalOutput *screen) override;
 
 private:
     friend class InputFilter;
@@ -73,7 +75,9 @@ private:
 
     // Overlay rendering.
     void updateOverlayViews();
-    void updateOverlayView(KWin::LogicalOutput *screen);
+    void drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
+    void drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color) const;
+    void drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
 
     // Output/grid helpers.
     KWin::LogicalOutput *outputForPoint(const QPointF &point) const;
@@ -111,6 +115,8 @@ private:
     bool m_sawRightPress = false;
     bool m_snapActive = false;
     bool m_suppressNextRightRelease = false;
+    bool m_loggedNoOverlayRenderer = false;
+    bool m_loggedOverlayPaintForSelection = false;
 };
 
 } // namespace Tiles

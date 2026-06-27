@@ -52,6 +52,8 @@ bool Effect::beginSelection(const QPointF &point)
     const Tile anchor = cellAt(m_activeOutput, point);
     m_selection = TileSelection{anchor, anchor};
     m_snapActive = true;
+    m_loggedNoOverlayRenderer = false;
+    m_loggedOverlayPaintForSelection = false;
 
     log(QStringLiteral("selection_begin window=%1 output=%2 grid=%3x%4 anchor=%5 point=%6,%7")
             .arg(describeWindow(m_snapWindow),
@@ -62,7 +64,6 @@ bool Effect::beginSelection(const QPointF &point)
             .arg(point.x(), 0, 'f', 1)
             .arg(point.y(), 0, 'f', 1));
 
-    setRunning(true);
     updateOverlayViews();
     return true;
 }
@@ -137,8 +138,6 @@ void Effect::finishSelection(const QPointF &point, const QString &reason)
     clearSelectionState();
     updateOverlayViews();
     KWin::effects->addRepaintFull();
-    setRunning(false);
-    KWin::effects->addRepaintFull();
 
     if (!m_dragWindow || m_dragWindow != m_pendingSnapWindow) {
         schedulePendingSnap(QStringLiteral("selection_finish_without_active_native_drag"));
@@ -159,8 +158,6 @@ void Effect::cancelSelection(const QString &reason)
     log(QStringLiteral("selection_cancel reason=%1 window=%2").arg(reason, describeWindow(m_snapWindow)));
     clearSelectionState();
     updateOverlayViews();
-    KWin::effects->addRepaintFull();
-    setRunning(false);
     KWin::effects->addRepaintFull();
 }
 

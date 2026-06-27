@@ -4,7 +4,6 @@
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
-#include <QUrl>
 
 #include <KConfigGroup>
 
@@ -14,7 +13,7 @@ namespace Tiles
 namespace
 {
 
-constexpr const char *BuildTag = "kwin-clicktile_build=0.5.0";
+constexpr const char *BuildTag = "kwin-clicktile_build=0.6.2";
 
 } // namespace
 
@@ -32,19 +31,11 @@ Effect::Effect()
     });
     reconfigure(ReconfigureAll);
 
-    const QString qmlPath = overlayQmlPath();
-    if (!qmlPath.isEmpty()) {
-        setViewCachingEnabled(true);
-        setSource(QUrl::fromLocalFile(qmlPath));
-        log(QStringLiteral("overlay_qml path=%1").arg(qmlPath));
-    } else {
-        log(QStringLiteral("overlay_qml missing"));
-    }
-    setRunning(false);
+    log(QStringLiteral("overlay_renderer type=passive_paint_screen"));
 
     m_inputFilter = std::make_unique<InputFilter>(this);
     KWin::input()->installInputEventFilter(m_inputFilter.get());
-    log(QStringLiteral("input_filter_installed order=Effects behavior=consume_clicktile_right_chord_only"));
+    log(QStringLiteral("input_filter_installed order=Effects behavior=consume_right_chord_passive_overlay"));
 
     connect(KWin::effects, &KWin::EffectsHandler::windowAdded, this, &Effect::wireWindow);
     connect(KWin::effects, &KWin::EffectsHandler::windowDeleted, this, &Effect::unwireWindow);
@@ -76,9 +67,6 @@ Effect::~Effect()
 
 bool Effect::supported()
 {
-    // Keep the effect loadable even if the QuickScene overlay is unavailable on a
-    // particular KWin build. The input filter and window resize path are still
-    // useful without the visual preview.
     return true;
 }
 
@@ -89,7 +77,7 @@ bool Effect::enabledByDefault()
 
 void Effect::reconfigure(ReconfigureFlags flags)
 {
-    KWin::QuickSceneEffect::reconfigure(flags);
+    KWin::Effect::reconfigure(flags);
 
     if (!m_config) {
         m_config = openKWinConfig();

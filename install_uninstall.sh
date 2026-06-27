@@ -27,6 +27,14 @@ require_command() {
     fi
 }
 
+ensure_sudo() {
+    require_command sudo
+    if ! sudo -v; then
+        printf 'Could not obtain sudo credentials; leaving KWin and installed files unchanged.\n' >&2
+        exit 1
+    fi
+}
+
 is_recorded() {
     local path="$1"
     local file="$2"
@@ -84,15 +92,90 @@ effect_loaded() {
             grep -qi '^true$'
 }
 
+path_present() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
+
+build_marker_for() {
+    local path="$1"
+    local marker
+
+    if ! command -v strings >/dev/null 2>&1; then
+        printf '<strings unavailable>'
+        return
+    fi
+
+    if [ ! -f "$path" ]; then
+        printf '<missing>'
+        return
+    fi
+
+    marker="$(strings "$path" 2>/dev/null | grep -m1 'kwin-clicktile_build=' || true)"
+    printf '%s' "${marker:-<missing>}"
+}
+
+metadata_status_for() {
+    local path="$1"
+    local output
+
+    if ! command -v qtplugininfo6 >/dev/null 2>&1; then
+        printf 'unchecked (qtplugininfo6 missing)'
+        return
+    fi
+
+    if [ ! -f "$path" ]; then
+        printf 'missing'
+        return
+    fi
+
+    if output="$(qtplugininfo6 "$path" 2>&1)"; then
+        printf 'ok'
+    else
+        printf 'invalid (%s)' "${output%%$'\n'*}"
+    fi
+}
+
+kwin_loaded_status() {
+    local output
+
+    if ! command -v qdbus6 >/dev/null 2>&1; then
+        printf 'unknown (qdbus6 missing)'
+        return
+    fi
+
+    if output="$(qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded "$effect_id" 2>&1)"; then
+        if printf '%s\n' "$output" | grep -qi '^true$'; then
+            printf 'yes'
+        elif printf '%s\n' "$output" | grep -qi '^false$'; then
+            printf 'no'
+        else
+            printf 'unknown (%s)' "${output%%$'\n'*}"
+        fi
+    else
+        printf 'unknown (%s)' "${output%%$'\n'*}"
+    fi
+}
+
+latest_log_marker() {
+    local path="$1"
+    local marker
+
+    if [ ! -f "$path" ]; then
+        printf '<missing>'
+        return
+    fi
+
+    marker="$(grep 'build_marker kwin-clicktile_build=' "$path" 2>/dev/null | tail -n 1 || true)"
+    if [ -n "$marker" ]; then
+        printf '%s' "${marker##*build_marker }"
+    else
+        printf '<no build_marker seen>'
+    fi
+}
+
 new_targets() {
     printf '%s\n' "$plugin_root/kwin/effects/plugins/$plugin_library"
     printf '%s\n' "$plugin_root/kwin/effects/configs/$config_library"
-
-    local root
-    IFS=: read -r -a roots <<< "$data_roots"
-    for root in "${roots[@]}"; do
-        printf '%s\n' "$root/kwin/effects/kwin-clicktile/contents/ui/main.qml"
-    done
 }
 
 stale_targets() {
@@ -105,6 +188,7 @@ stale_targets() {
     local root
     IFS=: read -r -a roots <<< "$data_roots"
     for root in "${roots[@]}"; do
+        printf '%s\n' "$root/kwin/effects/kwin-clicktile/contents/ui/main.qml"
         printf '%s\n' "$root/kwin/effects/clicktile_snap_${old_suffix}/contents/ui/main.qml"
         printf '%s\n' "$root/kwin/effects/clicktile_filter_${old_suffix}/contents/ui/main.qml"
         printf '%s\n' "$root/kwin/effects/clicktile_${old_suffix}/contents/ui/main.qml"
@@ -237,7 +321,7 @@ verify_loaded_build_marker() {
 }
 
 install_effect() {
-    require_command sudo
+    ensure_sudo
     mkdir -p "$state_dir" "$backup_root"
 
     unload_effects
@@ -312,7 +396,7 @@ remove_created_dirs() {
 }
 
 uninstall_effect() {
-    require_command sudo
+    ensure_sudo
 
     unload_effects
     restore_backups
@@ -329,38 +413,112 @@ EOF
 }
 
 status_effect() {
-    if is_installed; then
-        printf 'kwin-clicktile installed: yes\n'
-    else
-        printf 'kwin-clicktile installed: no\n'
-    fi
+    local built_plugin="$build_dir/$plugin_library"
+    local built_config="$build_dir/$config_library"
+    local installed_plugin="$plugin_root/kwin/effects/plugins/$plugin_library"
+    local installed_config="$plugin_root/kwin/effects/configs/$config_library"
+    local built_marker installed_marker primary_log primary_log_marker kwin_log kwin_log_marker
+    local -a missing_required=()
 
+    built_marker="$(build_marker_for "$built_plugin")"
+    installed_marker="$(build_marker_for "$installed_plugin")"
+    primary_log="$state_home/kwin-clicktile/effect/events.log"
+    kwin_log="$state_home/kwin/kwin-clicktile/effect/events.log"
+    primary_log_marker="$(latest_log_marker "$primary_log")"
+    kwin_log_marker="$(latest_log_marker "$kwin_log")"
+
+    printf 'kwin-clicktile status\n'
+    printf 'repo: %s\n' "$repo_root"
+    printf 'effect id: %s\n\n' "$effect_id"
+
+    printf 'Build artifacts\n'
+    if path_present "$built_plugin"; then
+        printf '  effect plugin: present\n'
+    else
+        printf '  effect plugin: MISSING\n'
+        missing_required+=("built effect plugin: $built_plugin")
+    fi
+    printf '    path: %s\n' "$built_plugin"
+    printf '    marker: %s\n' "$built_marker"
+    printf '    metadata: %s\n' "$(metadata_status_for "$built_plugin")"
+
+    if path_present "$built_config"; then
+        printf '  config module: present\n'
+    else
+        printf '  config module: MISSING\n'
+        missing_required+=("built config module: $built_config")
+    fi
+    printf '    path: %s\n' "$built_config"
+    printf '    metadata: %s\n\n' "$(metadata_status_for "$built_config")"
+
+    printf 'Installed artifacts\n'
+    if path_present "$installed_plugin"; then
+        printf '  effect plugin: present\n'
+    else
+        printf '  effect plugin: MISSING\n'
+        missing_required+=("installed effect plugin: $installed_plugin")
+    fi
+    printf '    path: %s\n' "$installed_plugin"
+    printf '    marker: %s\n' "$installed_marker"
+    printf '    metadata: %s\n' "$(metadata_status_for "$installed_plugin")"
+
+    if path_present "$installed_config"; then
+        printf '  config module: present\n'
+    else
+        printf '  config module: MISSING\n'
+        missing_required+=("installed config module: $installed_config")
+    fi
+    printf '    path: %s\n' "$installed_config"
+    printf '    metadata: %s\n\n' "$(metadata_status_for "$installed_config")"
+
+    printf 'Runtime\n'
+    printf '  KWin loaded: %s\n' "$(kwin_loaded_status)"
+    printf '  primary log: %s (%s)\n' "$primary_log" "$primary_log_marker"
+    printf '  kwin log: %s (%s)\n\n' "$kwin_log" "$kwin_log_marker"
+
+    printf 'Stale artifacts expected absent\n'
+    local stale_count=0
     while IFS= read -r target; do
         [ -n "$target" ] || continue
-        if [ -e "$target" ] || [ -L "$target" ]; then
-            printf 'present: %s\n' "$target"
-        else
-            printf 'missing: %s\n' "$target"
+        if path_present "$target"; then
+            printf '  present: %s\n' "$target"
+            stale_count=$((stale_count + 1))
         fi
-    done < <(new_targets)
+    done < <(stale_targets)
+    if [ "$stale_count" -eq 0 ]; then
+        printf '  none\n'
+    fi
+    printf '\n'
 
-    if command -v strings >/dev/null 2>&1 && [ -f "$build_dir/$plugin_library" ]; then
-        strings "$build_dir/$plugin_library" | grep -m1 'kwin-clicktile_build=' || true
+    printf 'Summary\n'
+    if [ "${#missing_required[@]}" -eq 0 ]; then
+        printf '  missing required artifacts: none\n'
+    else
+        printf '  missing required artifacts:\n'
+        local item
+        for item in "${missing_required[@]}"; do
+            printf '    - %s\n' "$item"
+        done
     fi
 
-    if command -v qtplugininfo6 >/dev/null 2>&1; then
-        while IFS= read -r target; do
-            [ -n "$target" ] || continue
-            case "$target" in
-                *.so)
-                    if [ -f "$target" ] && qtplugininfo6 "$target" >/dev/null 2>&1; then
-                        printf 'metadata ok: %s\n' "$target"
-                    elif [ -f "$target" ]; then
-                        printf 'metadata missing: %s\n' "$target"
-                    fi
-                    ;;
-            esac
-        done < <(new_targets)
+    if [ "$built_marker" != '<missing>' ] && [ "$installed_marker" != '<missing>' ] && [ "$built_marker" != "$installed_marker" ]; then
+        printf '  version mismatch: built %s, installed %s\n' "$built_marker" "$installed_marker"
+        printf '  suggested action: %s --install\n' "$0"
+    else
+        printf '  version mismatch: none\n'
+    fi
+
+    local log_mismatch=0
+    if [[ "$primary_log_marker" == kwin-clicktile_build=* ]] && [ "$installed_marker" != '<missing>' ] && [ "$primary_log_marker" != "$installed_marker" ]; then
+        printf '  latest primary log marker differs from installed: %s\n' "$primary_log_marker"
+        log_mismatch=1
+    fi
+    if [[ "$kwin_log_marker" == kwin-clicktile_build=* ]] && [ "$installed_marker" != '<missing>' ] && [ "$kwin_log_marker" != "$installed_marker" ]; then
+        printf '  latest kwin log marker differs from installed: %s\n' "$kwin_log_marker"
+        log_mismatch=1
+    fi
+    if [ "$log_mismatch" -eq 0 ]; then
+        printf '  latest log marker mismatch: none observed\n'
     fi
 }
 

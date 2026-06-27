@@ -67,10 +67,8 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.unloadEffect kwin_clicktile
 - `src/effect.*`: effect lifecycle and KWin integration
 - `src/input*`: global pointer observation and native drag tracking
 - `src/tiles.cpp`: tile selection, output geometry, and final placement
-- `src/overlay.cpp`: QuickScene overlay updates
+- `src/overlay.cpp`: passive paint-screen grid overlay
 - `src/settings.*`: KWin config keys, defaults, and monitor settings
 - `src/log.cpp`: diagnostics
 - `kcm/`: System Settings module
-- `contents/ui/main.qml`: grid overlay
-
 The Snapdragin reference clone is kept under `.tmp/snapdragin` when present.
