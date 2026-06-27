@@ -67,10 +67,12 @@ bool Effect::beginSelection(const QPointF &point)
     m_loggedNoOverlayRenderer = false;
     m_loggedOverlayPaintForSelection = false;
 
-    log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_grid=%4x%5 focus_grid=%6x%7 anchor=%8 point=%9,%10")
+    log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_token=%4 focus_token=%5 anchor_grid=%6x%7 focus_grid=%8x%9 anchor=%10 point=%11,%12")
             .arg(describeWindow(m_snapWindow),
                  describeOutput(m_anchorOutput),
-                 describeOutput(m_activeOutput))
+                 describeOutput(m_activeOutput),
+                 m_anchorSettings.token,
+                 m_activeSettings.token)
             .arg(m_anchorSettings.grid.columns)
             .arg(m_anchorSettings.grid.rows)
             .arg(m_activeSettings.grid.columns)
@@ -121,9 +123,11 @@ void Effect::updateSelection(const QPointF &point)
     }
 
     const auto rect = currentSelectionRect();
-    log(QStringLiteral("selection_update anchor_output=%1 focus_output=%2 anchor_grid=%3x%4 focus_grid=%5x%6 anchor=%7 focus=%8 cross_output=%9 rect=%10")
+    log(QStringLiteral("selection_update anchor_output=%1 focus_output=%2 anchor_token=%3 focus_token=%4 anchor_grid=%5x%6 focus_grid=%7x%8 anchor=%9 focus=%10 cross_output=%11 rect=%12")
             .arg(describeOutput(m_anchorOutput),
-                 describeOutput(m_activeOutput))
+                 describeOutput(m_activeOutput),
+                 m_anchorSettings.token,
+                 m_activeSettings.token)
             .arg(m_anchorSettings.grid.columns)
             .arg(m_anchorSettings.grid.rows)
             .arg(m_activeSettings.grid.columns)

@@ -1,10 +1,12 @@
 #include "settings.h"
 
 #include <QCryptographicHash>
+#include <QStringList>
 
 #include <KConfigGroup>
 
 #include <algorithm>
+#include <optional>
 
 namespace Tiles
 {
@@ -25,6 +27,74 @@ QString outputRowsEntry(const QString &token)
 QString outputLabelEntry(const QString &token)
 {
     return QStringLiteral("Output_%1_Label").arg(token);
+}
+
+QString outputNameFromKey(const QString &key)
+{
+    const QString name = key.section(QLatin1Char('|'), 0, 0).trimmed();
+    return name.isEmpty() ? key.trimmed() : name;
+}
+
+QString outputNameToken(const QString &key)
+{
+    const QString name = outputNameFromKey(key);
+    return name.isEmpty() ? QString() : outputToken(name);
+}
+
+std::optional<QString> tokenFromLabelEntry(const QString &entry)
+{
+    static const QString prefix = QStringLiteral("Output_");
+    static const QString suffix = QStringLiteral("_Label");
+
+    if (!entry.startsWith(prefix) || !entry.endsWith(suffix)) {
+        return std::nullopt;
+    }
+
+    return entry.mid(prefix.size(), entry.size() - prefix.size() - suffix.size());
+}
+
+std::optional<QString> storedTokenForOutputName(const KConfigGroup &group, const QString &name)
+{
+    if (name.isEmpty()) {
+        return std::nullopt;
+    }
+
+    for (const QString &entry : group.keyList()) {
+        const auto token = tokenFromLabelEntry(entry);
+        if (!token) {
+            continue;
+        }
+
+        const QString storedLabel = group.readEntry(entry, QString());
+        if (storedLabel == name || storedLabel.startsWith(name + QStringLiteral(" - "))) {
+            return token;
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool hasGridForToken(const KConfigGroup &group, const QString &token)
+{
+    return !token.isEmpty()
+        && (group.hasKey(outputColumnsEntry(token)) || group.hasKey(outputRowsEntry(token)));
+}
+
+TileGrid readGridForToken(const KConfigGroup &group, const QString &token, const TileGrid &defaults)
+{
+    return sanitizeGrid(group.readEntry(outputColumnsEntry(token), defaults.columns),
+                        group.readEntry(outputRowsEntry(token), defaults.rows));
+}
+
+void writeGridForToken(KConfigGroup &group, const QString &token, const OutputSettings &settings)
+{
+    if (token.isEmpty()) {
+        return;
+    }
+
+    group.writeEntry(outputColumnsEntry(token), settings.grid.columns, KConfigBase::Notify);
+    group.writeEntry(outputRowsEntry(token), settings.grid.rows, KConfigBase::Notify);
+    group.writeEntry(outputLabelEntry(token), settings.label, KConfigBase::Notify);
 }
 
 } // namespace
@@ -128,22 +198,55 @@ OutputSettings readOutputSettings(const KSharedConfigPtr &config, const QString 
     const QString token = outputToken(key);
     const TileGrid defaults = defaultGridForGeometry(geometry);
     const KConfigGroup group(config, effectConfigGroupName());
+    const QString nameToken = outputNameToken(key);
+    const QString name = outputNameFromKey(key);
+
+    if (hasGridForToken(group, token)) {
+        return OutputSettings{
+            key,
+            token,
+            label,
+            readGridForToken(group, token, defaults),
+        };
+    }
+
+    if (hasGridForToken(group, nameToken)) {
+        return OutputSettings{
+            key,
+            nameToken,
+            label,
+            readGridForToken(group, nameToken, defaults),
+        };
+    }
+
+    if (const auto storedToken = storedTokenForOutputName(group, name); storedToken && hasGridForToken(group, *storedToken)) {
+        return OutputSettings{
+            key,
+            *storedToken,
+            label,
+            readGridForToken(group, *storedToken, defaults),
+        };
+    }
 
     return OutputSettings{
         key,
         token,
         label,
-        sanitizeGrid(group.readEntry(outputColumnsEntry(token).toUtf8().constData(), defaults.columns),
-                     group.readEntry(outputRowsEntry(token).toUtf8().constData(), defaults.rows)),
+        defaults,
     };
 }
 
 void writeOutputSettings(const KSharedConfigPtr &config, const OutputSettings &settings)
 {
     KConfigGroup group(config, effectConfigGroupName());
-    group.writeEntry(outputColumnsEntry(settings.token).toUtf8().constData(), settings.grid.columns, KConfigBase::Notify);
-    group.writeEntry(outputRowsEntry(settings.token).toUtf8().constData(), settings.grid.rows, KConfigBase::Notify);
-    group.writeEntry(outputLabelEntry(settings.token).toUtf8().constData(), settings.label, KConfigBase::Notify);
+    const QString token = settings.token.isEmpty() ? outputToken(settings.key) : settings.token;
+
+    writeGridForToken(group, token, settings);
+
+    const QString nameToken = outputNameToken(settings.key);
+    if (nameToken != token) {
+        writeGridForToken(group, nameToken, settings);
+    }
 }
 
 } // namespace Tiles
