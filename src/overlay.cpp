@@ -162,7 +162,7 @@ void Effect::paintScreen(const KWin::RenderTarget &renderTarget,
 {
     KWin::effects->paintScreen(renderTarget, viewport, mask, deviceRegion, screen);
 
-    if (!m_snapActive || !screen || screen != m_activeOutput || !m_selection) {
+    if (!m_snapActive || !screen || !m_selection || !shouldPaintOverlayForOutput(screen)) {
         return;
     }
 
@@ -315,13 +315,18 @@ int Effect::drawGridGeometry(const KWin::RenderViewport &viewport, KWin::Logical
     rectanglesDrawn += drawGlRect(viewport, KWin::RectF(area.left(), area.top(), line, area.height()), gridColor) ? 1 : 0;
     rectanglesDrawn += drawGlRect(viewport, KWin::RectF(area.right() - line, area.top(), line, area.height()), gridColor) ? 1 : 0;
 
-    for (int column = 1; column < m_activeSettings.grid.columns; ++column) {
-        const qreal x = area.left() + area.width() * column / m_activeSettings.grid.columns;
+    const OutputSettings settings = screen == m_anchorOutput
+        ? m_anchorSettings
+        : (screen == m_activeOutput ? m_activeSettings : settingsForOutput(screen));
+    const TileGrid grid = sanitizeGrid(settings.grid.columns, settings.grid.rows);
+
+    for (int column = 1; column < grid.columns; ++column) {
+        const qreal x = area.left() + area.width() * column / grid.columns;
         rectanglesDrawn += drawGlRect(viewport, KWin::RectF(x - line / 2.0, area.top(), line, area.height()), gridColor) ? 1 : 0;
     }
 
-    for (int row = 1; row < m_activeSettings.grid.rows; ++row) {
-        const qreal y = area.top() + area.height() * row / m_activeSettings.grid.rows;
+    for (int row = 1; row < grid.rows; ++row) {
+        const qreal y = area.top() + area.height() * row / grid.rows;
         rectanglesDrawn += drawGlRect(viewport, KWin::RectF(area.left(), y - line / 2.0, area.width(), line), gridColor) ? 1 : 0;
     }
 

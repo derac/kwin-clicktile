@@ -86,8 +86,9 @@ private:
     KWin::RectF workAreaForOutput(KWin::LogicalOutput *output) const;
     OutputSettings settingsForOutput(KWin::LogicalOutput *output) const;
     Tile cellAt(KWin::LogicalOutput *output, const QPointF &point) const;
+    KWin::RectF cellRectForOutput(KWin::LogicalOutput *output, const OutputSettings &settings, const Tile &cell) const;
+    bool shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const;
     std::optional<KWin::RectF> currentSelectionRect() const;
-    std::optional<TileSelection> normalizedSelection() const;
     QString overlayQmlPath() const;
 
     // Diagnostics.
@@ -104,11 +105,13 @@ private:
     QPointer<KWin::EffectWindow> m_dragWindow;
     QPointer<KWin::EffectWindow> m_snapWindow;
     QPointer<KWin::EffectWindow> m_pendingSnapWindow;
+    QPointer<KWin::LogicalOutput> m_anchorOutput;
     QPointer<KWin::LogicalOutput> m_activeOutput;
     std::unique_ptr<InputFilter> m_inputFilter;
     KSharedConfigPtr m_config;
     KConfigWatcher::Ptr m_configWatcher;
     OverlayColors m_colors = defaultOverlayColors();
+    OutputSettings m_anchorSettings;
     OutputSettings m_activeSettings;
     std::optional<TileSelection> m_selection;
     std::optional<KWin::RectF> m_pendingSnapRect;

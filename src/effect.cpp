@@ -13,7 +13,7 @@ namespace Tiles
 namespace
 {
 
-constexpr const char *BuildTag = "kwin-clicktile_build=0.6.6";
+constexpr const char *BuildTag = "kwin-clicktile_build=0.6.7";
 
 } // namespace
 
@@ -41,7 +41,7 @@ Effect::Effect()
     connect(KWin::effects, &KWin::EffectsHandler::windowDeleted, this, &Effect::unwireWindow);
     connect(KWin::effects, &KWin::EffectsHandler::windowClosed, this, &Effect::unwireWindow);
     connect(KWin::effects, &KWin::EffectsHandler::screenRemoved, this, [this](KWin::LogicalOutput *screen) {
-        if (m_activeOutput == screen) {
+        if (m_anchorOutput == screen || m_activeOutput == screen) {
             cancelSelection(QStringLiteral("active_output_removed"));
         }
     });
@@ -84,6 +84,9 @@ void Effect::reconfigure(ReconfigureFlags flags)
     }
     m_config->reparseConfiguration();
     m_colors = readOverlayColors(m_config);
+    if (m_anchorOutput) {
+        m_anchorSettings = settingsForOutput(m_anchorOutput);
+    }
     if (m_activeOutput) {
         m_activeSettings = settingsForOutput(m_activeOutput);
     }

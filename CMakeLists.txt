@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(kwin_clicktile VERSION 0.6.6)
+project(kwin_clicktile VERSION 0.6.7)
 
 set(QT_MIN_VERSION "6.6.0")
 set(QT_MAJOR_VERSION 6)

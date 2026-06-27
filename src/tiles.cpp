@@ -26,6 +26,16 @@ qreal distanceToRectSquared(const QPointF &point, const KWin::RectF &rect)
     return dx * dx + dy * dy;
 }
 
+bool rectsIntersect(const KWin::RectF &first, const KWin::RectF &second)
+{
+    return !first.isEmpty()
+        && !second.isEmpty()
+        && first.left() < second.right()
+        && first.right() > second.left()
+        && first.top() < second.bottom()
+        && first.bottom() > second.top();
+}
+
 QString cellString(const Tile &cell)
 {
     return QStringLiteral("%1,%2").arg(cell.column).arg(cell.row);
@@ -41,23 +51,28 @@ bool Effect::beginSelection(const QPointF &point)
     }
 
     m_snapWindow = m_dragWindow;
-    m_activeOutput = outputForPoint(point);
-    if (!m_activeOutput) {
+    m_anchorOutput = outputForPoint(point);
+    if (!m_anchorOutput) {
         log(QStringLiteral("selection_begin_failed reason=no_output"));
         clearSelectionState();
         return false;
     }
 
-    m_activeSettings = settingsForOutput(m_activeOutput);
-    const Tile anchor = cellAt(m_activeOutput, point);
+    m_anchorSettings = settingsForOutput(m_anchorOutput);
+    m_activeOutput = m_anchorOutput;
+    m_activeSettings = m_anchorSettings;
+    const Tile anchor = cellAt(m_anchorOutput, point);
     m_selection = TileSelection{anchor, anchor};
     m_snapActive = true;
     m_loggedNoOverlayRenderer = false;
     m_loggedOverlayPaintForSelection = false;
 
-    log(QStringLiteral("selection_begin window=%1 output=%2 grid=%3x%4 anchor=%5 point=%6,%7")
+    log(QStringLiteral("selection_begin window=%1 anchor_output=%2 focus_output=%3 anchor_grid=%4x%5 focus_grid=%6x%7 anchor=%8 point=%9,%10")
             .arg(describeWindow(m_snapWindow),
+                 describeOutput(m_anchorOutput),
                  describeOutput(m_activeOutput))
+            .arg(m_anchorSettings.grid.columns)
+            .arg(m_anchorSettings.grid.rows)
             .arg(m_activeSettings.grid.columns)
             .arg(m_activeSettings.grid.rows)
             .arg(cellString(anchor))
@@ -79,40 +94,43 @@ void Effect::updateSelection(const QPointF &point)
         return;
     }
 
-    const bool outputChanged = output != m_activeOutput;
-    if (outputChanged) {
-        m_activeOutput = output;
-        m_activeSettings = settingsForOutput(output);
-        const Tile cell = cellAt(output, point);
-        m_selection = TileSelection{cell, cell};
-        log(QStringLiteral("selection_output_changed output=%1 grid=%2x%3 anchor=%4")
-                .arg(describeOutput(output))
-                .arg(m_activeSettings.grid.columns)
-                .arg(m_activeSettings.grid.rows)
-                .arg(cellString(cell)));
-        updateOverlayViews();
-        return;
-    }
-
+    const OutputSettings nextSettings = settingsForOutput(output);
     if (!m_selection) {
         const Tile cell = cellAt(output, point);
         m_selection = TileSelection{cell, cell};
+        m_anchorOutput = output;
+        m_anchorSettings = nextSettings;
+        m_activeOutput = output;
+        m_activeSettings = nextSettings;
         updateOverlayViews();
         return;
     }
 
+    const bool outputChanged = output != m_activeOutput;
     TileSelection next = *m_selection;
     next.focus = cellAt(output, point);
-    if (next == m_selection) {
+    if (!outputChanged && next == m_selection) {
         return;
     }
 
+    m_activeOutput = output;
+    m_activeSettings = nextSettings;
     m_selection = next;
+    if (outputChanged) {
+        m_loggedOverlayPaintForSelection = false;
+    }
+
     const auto rect = currentSelectionRect();
-    log(QStringLiteral("selection_update output=%1 anchor=%2 focus=%3 rect=%4")
-            .arg(describeOutput(m_activeOutput),
-                 cellString(m_selection->anchor),
+    log(QStringLiteral("selection_update anchor_output=%1 focus_output=%2 anchor_grid=%3x%4 focus_grid=%5x%6 anchor=%7 focus=%8 cross_output=%9 rect=%10")
+            .arg(describeOutput(m_anchorOutput),
+                 describeOutput(m_activeOutput))
+            .arg(m_anchorSettings.grid.columns)
+            .arg(m_anchorSettings.grid.rows)
+            .arg(m_activeSettings.grid.columns)
+            .arg(m_activeSettings.grid.rows)
+            .arg(cellString(m_selection->anchor),
                  cellString(m_selection->focus),
+                 m_anchorOutput == m_activeOutput ? QStringLiteral("false") : QStringLiteral("true"),
                  rect ? describeRect(*rect) : QStringLiteral("<none>")));
     updateOverlayViews();
 }
@@ -125,9 +143,10 @@ void Effect::finishSelection(const QPointF &point, const QString &reason)
 
     updateSelection(point);
     const auto rect = currentSelectionRect();
-    log(QStringLiteral("selection_finish reason=%1 window=%2 output=%3 rect=%4")
+    log(QStringLiteral("selection_finish reason=%1 window=%2 anchor_output=%3 focus_output=%4 rect=%5")
             .arg(reason,
                  describeWindow(m_snapWindow),
+                 describeOutput(m_anchorOutput),
                  describeOutput(m_activeOutput),
                  rect ? describeRect(*rect) : QStringLiteral("<none>")));
 
@@ -165,8 +184,10 @@ void Effect::clearSelectionState()
 {
     m_snapActive = false;
     m_snapWindow.clear();
+    m_anchorOutput.clear();
     m_activeOutput.clear();
     m_selection.reset();
+    m_anchorSettings = OutputSettings{};
     m_activeSettings = OutputSettings{};
 }
 
@@ -314,45 +335,55 @@ Tile Effect::cellAt(KWin::LogicalOutput *output, const QPointF &point) const
     return Tile{column, row};
 }
 
-std::optional<KWin::RectF> Effect::currentSelectionRect() const
+KWin::RectF Effect::cellRectForOutput(KWin::LogicalOutput *output, const OutputSettings &settings, const Tile &cell) const
 {
-    if (!m_snapActive || !m_activeOutput || !m_selection) {
-        return std::nullopt;
-    }
-
-    const KWin::RectF area = workAreaForOutput(m_activeOutput);
+    const KWin::RectF area = workAreaForOutput(output);
     if (area.isEmpty()) {
-        return std::nullopt;
+        return KWin::RectF();
     }
 
-    const TileGrid grid = m_activeSettings.grid;
-    const int leftCell = std::min(m_selection->anchor.column, m_selection->focus.column);
-    const int topCell = std::min(m_selection->anchor.row, m_selection->focus.row);
-    const int rightCell = std::max(m_selection->anchor.column, m_selection->focus.column) + 1;
-    const int bottomCell = std::max(m_selection->anchor.row, m_selection->focus.row) + 1;
+    const TileGrid grid = sanitizeGrid(settings.grid.columns, settings.grid.rows);
+    const int column = std::clamp(cell.column, 0, grid.columns - 1);
+    const int row = std::clamp(cell.row, 0, grid.rows - 1);
 
-    const qreal left = area.left() + area.width() * leftCell / grid.columns;
-    const qreal right = area.left() + area.width() * rightCell / grid.columns;
-    const qreal top = area.top() + area.height() * topCell / grid.rows;
-    const qreal bottom = area.top() + area.height() * bottomCell / grid.rows;
+    const qreal left = area.left() + area.width() * column / grid.columns;
+    const qreal right = area.left() + area.width() * (column + 1) / grid.columns;
+    const qreal top = area.top() + area.height() * row / grid.rows;
+    const qreal bottom = area.top() + area.height() * (row + 1) / grid.rows;
     return KWin::RectF(left, top, right - left, bottom - top);
 }
 
-std::optional<TileSelection> Effect::normalizedSelection() const
+bool Effect::shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const
 {
-    if (!m_selection) {
+    if (!output || !m_snapActive || !m_selection) {
+        return false;
+    }
+
+    if (output == m_anchorOutput || output == m_activeOutput) {
+        return true;
+    }
+
+    const auto selection = currentSelectionRect();
+    return selection && rectsIntersect(*selection, workAreaForOutput(output));
+}
+
+std::optional<KWin::RectF> Effect::currentSelectionRect() const
+{
+    if (!m_snapActive || !m_anchorOutput || !m_activeOutput || !m_selection) {
         return std::nullopt;
     }
 
-    const Tile anchor{
-        std::min(m_selection->anchor.column, m_selection->focus.column),
-        std::min(m_selection->anchor.row, m_selection->focus.row),
-    };
-    const Tile focus{
-        std::max(m_selection->anchor.column, m_selection->focus.column),
-        std::max(m_selection->anchor.row, m_selection->focus.row),
-    };
-    return TileSelection{anchor, focus};
+    const KWin::RectF anchorRect = cellRectForOutput(m_anchorOutput, m_anchorSettings, m_selection->anchor);
+    const KWin::RectF focusRect = cellRectForOutput(m_activeOutput, m_activeSettings, m_selection->focus);
+    if (anchorRect.isEmpty() || focusRect.isEmpty()) {
+        return std::nullopt;
+    }
+
+    const qreal left = std::min(anchorRect.left(), focusRect.left());
+    const qreal top = std::min(anchorRect.top(), focusRect.top());
+    const qreal right = std::max(anchorRect.right(), focusRect.right());
+    const qreal bottom = std::max(anchorRect.bottom(), focusRect.bottom());
+    return KWin::RectF(left, top, right - left, bottom - top);
 }
 
 } // namespace Tiles
