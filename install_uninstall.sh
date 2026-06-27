@@ -3,24 +3,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 build_dir="$repo_root/.tmp/build"
-stage_dir="$repo_root/.tmp/stage"
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-state_dir="$state_home/kwin-clicktile/effect"
-backup_root="$state_dir/backups"
-staged_files_file="$state_dir/staged-files"
-installed_files_file="$state_dir/installed-files"
-created_files_file="$state_dir/created-files"
-backed_up_files_file="$state_dir/backed-up-files"
-created_dirs_file="$state_dir/created-dirs"
-kwinrc_file="$config_home/kwinrc"
 effect_id="kwin_clicktile"
 plugin_library="kwin_clicktile.so"
 config_library="kwin_clicktile_config.so"
 plugin_root="$(qtpaths6 --plugin-dir 2>/dev/null || printf '/usr/lib/qt6/plugins')"
-data_roots="$(qtpaths6 --paths GenericDataLocation 2>/dev/null || printf '/usr/share')"
-old_suffix="$(printf '%b' '\\155\\166\\160')"
-stale_effect_ids=("kwin-clicktile" "snapdragin" "clicktile_snap_${old_suffix}" "clicktile_filter_${old_suffix}" "clicktile_${old_suffix}")
 
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -34,57 +20,6 @@ ensure_sudo() {
     if ! sudo -v; then
         printf 'Could not obtain sudo credentials; leaving KWin and installed files unchanged.\n' >&2
         exit 1
-    fi
-}
-
-is_recorded() {
-    local path="$1"
-    local file="$2"
-
-    [ -f "$file" ] && grep -Fqx "$path" "$file"
-}
-
-record_unique() {
-    local path="$1"
-    local file="$2"
-
-    mkdir -p "$(dirname "$file")"
-    if ! is_recorded "$path" "$file"; then
-        printf '%s\n' "$path" >> "$file"
-    fi
-}
-
-record_created_parent_dirs() {
-    local target="$1"
-    local dir
-    local -a dirs_to_record=()
-
-    dir="$(dirname "$target")"
-    while [ "$dir" != "/" ] && [ ! -e "$dir" ]; do
-        dirs_to_record+=("$dir")
-        dir="$(dirname "$dir")"
-    done
-
-    for ((index=${#dirs_to_record[@]} - 1; index >= 0; index--)); do
-        record_unique "${dirs_to_record[$index]}" "$created_dirs_file"
-    done
-}
-
-record_target_backup() {
-    local target="$1"
-
-    if is_recorded "$target" "$backed_up_files_file" || is_recorded "$target" "$created_files_file"; then
-        return
-    fi
-
-    record_created_parent_dirs "$target"
-    if [ -e "$target" ] || [ -L "$target" ]; then
-        local backup_path="$backup_root${target}"
-        mkdir -p "$(dirname "$backup_path")"
-        cp -a "$target" "$backup_path"
-        record_unique "$target" "$backed_up_files_file"
-    else
-        record_unique "$target" "$created_files_file"
     fi
 }
 
@@ -158,175 +93,26 @@ kwin_loaded_status() {
     fi
 }
 
-latest_log_marker() {
-    local path="$1"
-    local marker
-
-    if [ ! -f "$path" ]; then
-        printf '<missing>'
-        return
-    fi
-
-    marker="$(grep 'build_marker kwin-clicktile_build=' "$path" 2>/dev/null | tail -n 1 || true)"
-    if [ -n "$marker" ]; then
-        printf '%s' "${marker##*build_marker }"
-    else
-        printf '<no build_marker seen>'
-    fi
+installed_plugin_path() {
+    printf '%s\n' "$plugin_root/kwin/effects/plugins/$plugin_library"
 }
 
-new_targets() {
-    printf '%s\n' "$plugin_root/kwin/effects/plugins/$plugin_library"
+installed_config_path() {
     printf '%s\n' "$plugin_root/kwin/effects/configs/$config_library"
 }
 
-stale_targets() {
-    printf '%s\n' "$plugin_root/kwin/effects/plugins/snapdragin.so"
-    printf '%s\n' "$plugin_root/kwin/effects/plugins/clicktile_snap_${old_suffix}.so"
-    printf '%s\n' "$plugin_root/kwin/effects/plugins/clicktile_filter_${old_suffix}.so"
-    printf '%s\n' "$plugin_root/kwin/effects/plugins/clicktile_${old_suffix}.so"
-    printf '%s\n' "$plugin_root/kwin/effects/configs/kwin_snapdragin_config.so"
-    printf '%s\n' "$plugin_root/kwin/effects/configs/kwin_clicktile_${old_suffix}_config.so"
-    printf '%s\n' "$plugin_root/kwin/effects/configs/kwin_clicktile_snap_${old_suffix}_config.so"
-    printf '%s\n' "$plugin_root/kwin/effects/configs/kwin_clicktile_filter_${old_suffix}_config.so"
-
-    local root
-    IFS=: read -r -a roots <<< "$data_roots"
-    for root in "${roots[@]}"; do
-        printf '%s\n' "$root/kwin/effects/kwin-clicktile"
-        printf '%s\n' "$root/kwin/effects/snapdragin"
-        printf '%s\n' "$root/kwin/effects/clicktile_snap_${old_suffix}"
-        printf '%s\n' "$root/kwin/effects/clicktile_filter_${old_suffix}"
-        printf '%s\n' "$root/kwin/effects/clicktile_${old_suffix}"
-    done
-}
-
-stale_user_trace_paths() {
-    printf '%s\n' "$state_home/kwin-clicktile/inputactions-smoke"
-    printf '%s\n' "$state_home/kwin-clicktile/kwin-smoke"
-    printf '%s\n' "$state_home/kwin-clicktile/kwin-script"
-    printf '%s\n' "$state_home/kwin-clicktile/inputactions-clicktile"
-    printf '%s\n' "$state_home/kwin-clicktile/effect-mvp"
-    printf '%s\n' "$state_home/kwin-clicktile/effect-stale-clicktile-mvp"
-    printf '%s\n' "$state_home/kwin-clicktile/effect-filter-mvp"
-    printf '%s\n' "$state_home/kwin-clicktile/effect-snap-mvp"
-    printf '%s\n' "$state_home/kwin/kwin-clicktile/effect-mvp"
-    printf '%s\n' "$state_dir/cleaned-traces"
-    printf '%s\n' "$backup_root/stale-traces"
-
-    local trash_files="$HOME/.local/share/Trash/files"
-    local trash_info="$HOME/.local/share/Trash/info"
-    if [ -d "$trash_files" ]; then
-        find "$trash_files" -mindepth 1 \
-            \( -ipath '*clicktile*' -o -ipath '*inputactions*' -o -ipath '*snapdrag*' \) \
-            -prune -print 2>/dev/null
-    fi
-    if [ -d "$trash_info" ]; then
-        find "$trash_info" -mindepth 1 -maxdepth 1 \
-            \( -iname '*clicktile*' -o -iname '*inputactions*' -o -iname '*snapdrag*' \) \
-            -print 2>/dev/null
-    fi
-}
-
-stale_kwin_config_entries() {
-    if [ ! -f "$kwinrc_file" ]; then
-        return
-    fi
-
-    grep -E '^(\[Effect-(clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp|snapdragin)\]|\[Script-(kwin-clicktile|kwin-clicktile-smoke|clicktile_mvp|clicktile_snap_mvp|clicktile_filter_mvp)\]|(clicktile_mvpEnabled|clicktile_snap_mvpEnabled|clicktile_filter_mvpEnabled|kwin-clicktileEnabled|kwin-clicktile-smokeEnabled|snapdraginEnabled)=)' "$kwinrc_file" 2>/dev/null || true
-}
-
-cleanup_stale_kwin_config() {
-    local tmp
-
-    if [ ! -s "$kwinrc_file" ] || [ -z "$(stale_kwin_config_entries)" ]; then
-        return 1
-    fi
-
-    tmp="$(mktemp "$state_dir/kwinrc.clean.XXXXXX")"
-    awk '
-        /^\[/ {
-            skip = ($0 == "[Effect-clicktile_mvp]" ||
-                    $0 == "[Effect-clicktile_snap_mvp]" ||
-                    $0 == "[Effect-clicktile_filter_mvp]" ||
-                    $0 == "[Effect-snapdragin]" ||
-                    $0 == "[Script-kwin-clicktile]" ||
-                    $0 == "[Script-kwin-clicktile-smoke]" ||
-                    $0 == "[Script-clicktile_mvp]" ||
-                    $0 == "[Script-clicktile_snap_mvp]" ||
-                    $0 == "[Script-clicktile_filter_mvp]")
-        }
-        skip { next }
-        /^(clicktile_mvpEnabled|clicktile_snap_mvpEnabled|clicktile_filter_mvpEnabled|kwin-clicktileEnabled|kwin-clicktile-smokeEnabled|snapdraginEnabled)=/ { next }
-        { print }
-    ' "$kwinrc_file" > "$tmp"
-    mv "$tmp" "$kwinrc_file"
-    printf 'Removed stale KWin config entries from %s\n' "$kwinrc_file"
-    return 0
-}
-
-delete_stale_target_backups() {
-    local target backup_path
-
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        backup_path="$backup_root$target"
-        if [ -e "$backup_path" ] || [ -L "$backup_path" ]; then
-            rm -rf -- "$backup_path"
-            printf 'Deleted stale artifact backup: %s\n' "$backup_path"
-        fi
-    done < <(stale_targets)
-}
-
-cleanup_stale_traces() {
-    mkdir -p "$state_dir"
-
-    local cleaned=0
-    local target
-
-    cleanup_stale_kwin_config && cleaned=1
-    delete_stale_target_backups
-
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        if [ -e "$target" ] || [ -L "$target" ]; then
-            rm -rf -- "$target"
-            printf 'Deleted stale trace: %s\n' "$target"
-            cleaned=1
-        fi
-    done < <(stale_user_trace_paths)
-
-    if [ "$cleaned" -eq 1 ]; then
-        printf 'Deleted stale traces and old KWin config entries.\n'
-    fi
-}
-
-clear_runtime_logs() {
-    rm -f -- "$state_home/kwin-clicktile/effect/events.log"
-    rm -f -- "$state_home/kwin/kwin-clicktile/effect/events.log"
-}
-
 is_installed() {
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        if [ -e "$target" ] || [ -L "$target" ]; then
-            return 0
-        fi
-    done < <(new_targets)
-
-    effect_loaded
+    path_present "$(installed_plugin_path)" ||
+        path_present "$(installed_config_path)" ||
+        effect_loaded
 }
 
-unload_effects() {
+unload_effect() {
     if ! command -v qdbus6 >/dev/null 2>&1; then
         return
     fi
 
     qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.unloadEffect "$effect_id" >/dev/null 2>&1 || true
-    local stale_effect_id
-    for stale_effect_id in "${stale_effect_ids[@]}"; do
-        qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.unloadEffect "$stale_effect_id" >/dev/null 2>&1 || true
-    done
 }
 
 reconfigure_kwin() {
@@ -354,17 +140,6 @@ load_effect() {
     fi
 }
 
-build_project() {
-    require_command cmake
-
-    cmake -S "$repo_root" -B "$build_dir" \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_INSTALL_PREFIX=/usr
-    cmake --build "$build_dir" --parallel "$(nproc)"
-    verify_plugin_metadata "$build_dir/$plugin_library"
-    verify_plugin_metadata "$build_dir/$config_library"
-}
-
 verify_plugin_metadata() {
     local plugin="$1"
 
@@ -376,84 +151,45 @@ verify_plugin_metadata() {
     fi
 }
 
-stage_install() {
-    rm -rf "$stage_dir"
-    mkdir -p "$stage_dir"
-    DESTDIR="$stage_dir" cmake --install "$build_dir"
+build_project() {
+    require_command cmake
 
-    find "$stage_dir" \( -type f -o -type l \) | sort | while IFS= read -r staged_path; do
-        printf '/%s\n' "${staged_path#"$stage_dir"/}"
-    done > "$staged_files_file"
+    cmake -S "$repo_root" -B "$build_dir" \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build "$build_dir" --parallel "$(nproc)"
+    verify_plugin_metadata "$build_dir/$plugin_library"
+    verify_plugin_metadata "$build_dir/$config_library"
 }
 
-record_install_targets() {
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        record_target_backup "$target"
-        record_unique "$target" "$installed_files_file"
-    done < "$staged_files_file"
-}
+verify_installed_build_marker() {
+    local built_marker
+    local installed_marker
 
-prune_recorded_stale_targets() {
-    local stale_file="$state_dir/stale-targets.current"
-    local record_file tmp
+    built_marker="$(build_marker_for "$build_dir/$plugin_library")"
+    installed_marker="$(build_marker_for "$(installed_plugin_path)")"
 
-    mkdir -p "$state_dir"
-    stale_targets > "$stale_file"
-    for record_file in "$installed_files_file" "$backed_up_files_file" "$created_files_file"; do
-        [ -f "$record_file" ] || continue
-        tmp="$(mktemp "$state_dir/record.clean.XXXXXX")"
-        grep -Fvx -f "$stale_file" "$record_file" > "$tmp" || true
-        mv "$tmp" "$record_file"
-    done
-    rm -f "$stale_file"
-}
-
-remove_stale_targets() {
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        if [ -e "$target" ] || [ -L "$target" ]; then
-            sudo rm -rf -- "$target"
-            printf 'Deleted stale installed artifact: %s\n' "$target"
-        fi
-    done < <(stale_targets)
-}
-
-verify_loaded_build_marker() {
-    command -v strings >/dev/null 2>&1 || return
-
-    local plugin="$build_dir/$plugin_library"
-    local expected_marker
-    expected_marker="$(strings "$plugin" 2>/dev/null | grep -m1 'kwin-clicktile_build=' || true)"
-    [ -n "$expected_marker" ] || return
-
-    sleep 1
-    if grep -Fq "$expected_marker" \
-        "$state_home/kwin-clicktile/effect/events.log" \
-        "$state_home/kwin/kwin-clicktile/effect/events.log" 2>/dev/null; then
-        printf 'Observed loaded build marker: %s\n' "$expected_marker"
+    if [ "$built_marker" = '<missing>' ] || [ "$installed_marker" = '<missing>' ]; then
         return
     fi
 
-    printf 'WARNING: did not observe loaded build marker: %s\n' "$expected_marker" >&2
-    printf 'KWin may still have an older plugin image loaded. Restart KWin or log out/in, then rerun this script.\n' >&2
+    if [ "$built_marker" = "$installed_marker" ]; then
+        printf 'Installed build marker: %s\n' "$installed_marker"
+    else
+        printf 'WARNING: installed build marker differs from built marker.\n' >&2
+        printf '  built:     %s\n' "$built_marker" >&2
+        printf '  installed: %s\n' "$installed_marker" >&2
+    fi
 }
 
 install_effect() {
     ensure_sudo
-    mkdir -p "$state_dir" "$backup_root"
 
-    cleanup_stale_traces
-    unload_effects
-    clear_runtime_logs
+    unload_effect
     build_project
-    stage_install
-    prune_recorded_stale_targets
-    record_install_targets
-    remove_stale_targets
     sudo cmake --install "$build_dir"
     load_effect
-    verify_loaded_build_marker
+    verify_installed_build_marker
 
     cat <<EOF
 kwin-clicktile installed.
@@ -462,7 +198,6 @@ Configure:
   System Settings > Window Management > Desktop Effects > kwin-clicktile
 
 Logs:
-  tail -f "$state_home/kwin-clicktile/effect/events.log"
   journalctl -b -f | grep -i kwin-clicktile
 
 Run again to uninstall:
@@ -470,61 +205,15 @@ Run again to uninstall:
 EOF
 }
 
-restore_backups() {
-    if [ ! -f "$backed_up_files_file" ]; then
-        return
-    fi
-
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        local backup_path="$backup_root${target}"
-        if [ -e "$backup_path" ] || [ -L "$backup_path" ]; then
-            sudo mkdir -p "$(dirname "$target")"
-            sudo cp -a "$backup_path" "$target"
-        fi
-    done < "$backed_up_files_file"
-}
-
-remove_created_files() {
-    local removed_any=0
-
-    if [ -f "$created_files_file" ]; then
-        while IFS= read -r target; do
-            [ -n "$target" ] || continue
-            sudo rm -f "$target"
-            removed_any=1
-        done < "$created_files_file"
-    fi
-
-    if [ "$removed_any" -eq 0 ]; then
-        while IFS= read -r target; do
-            [ -n "$target" ] || continue
-            if [ -e "$target" ] || [ -L "$target" ]; then
-                sudo rm -f "$target"
-            fi
-        done < <(new_targets)
-    fi
-}
-
-remove_created_dirs() {
-    if [ ! -f "$created_dirs_file" ]; then
-        return
-    fi
-
-    tac "$created_dirs_file" | while IFS= read -r dir; do
-        [ -n "$dir" ] || continue
-        sudo rmdir "$dir" 2>/dev/null || true
-    done
+remove_installed_files() {
+    sudo rm -f -- "$(installed_plugin_path)" "$(installed_config_path)"
 }
 
 uninstall_effect() {
     ensure_sudo
 
-    unload_effects
-    prune_recorded_stale_targets
-    restore_backups
-    remove_created_files
-    remove_created_dirs
+    unload_effect
+    remove_installed_files
     reconfigure_kwin
 
     cat <<EOF
@@ -538,17 +227,15 @@ EOF
 status_effect() {
     local built_plugin="$build_dir/$plugin_library"
     local built_config="$build_dir/$config_library"
-    local installed_plugin="$plugin_root/kwin/effects/plugins/$plugin_library"
-    local installed_config="$plugin_root/kwin/effects/configs/$config_library"
-    local built_marker installed_marker primary_log primary_log_marker kwin_log kwin_log_marker
-    local -a missing_required=()
+    local installed_plugin
+    local installed_config
+    local built_marker
+    local installed_marker
 
+    installed_plugin="$(installed_plugin_path)"
+    installed_config="$(installed_config_path)"
     built_marker="$(build_marker_for "$built_plugin")"
     installed_marker="$(build_marker_for "$installed_plugin")"
-    primary_log="$state_home/kwin-clicktile/effect/events.log"
-    kwin_log="$state_home/kwin/kwin-clicktile/effect/events.log"
-    primary_log_marker="$(latest_log_marker "$primary_log")"
-    kwin_log_marker="$(latest_log_marker "$kwin_log")"
 
     printf 'kwin-clicktile status\n'
     printf 'repo: %s\n' "$repo_root"
@@ -559,7 +246,6 @@ status_effect() {
         printf '  effect plugin: present\n'
     else
         printf '  effect plugin: MISSING\n'
-        missing_required+=("built effect plugin: $built_plugin")
     fi
     printf '    path: %s\n' "$built_plugin"
     printf '    marker: %s\n' "$built_marker"
@@ -569,7 +255,6 @@ status_effect() {
         printf '  config module: present\n'
     else
         printf '  config module: MISSING\n'
-        missing_required+=("built config module: $built_config")
     fi
     printf '    path: %s\n' "$built_config"
     printf '    metadata: %s\n\n' "$(metadata_status_for "$built_config")"
@@ -579,7 +264,6 @@ status_effect() {
         printf '  effect plugin: present\n'
     else
         printf '  effect plugin: MISSING\n'
-        missing_required+=("installed effect plugin: $installed_plugin")
     fi
     printf '    path: %s\n' "$installed_plugin"
     printf '    marker: %s\n' "$installed_marker"
@@ -589,63 +273,20 @@ status_effect() {
         printf '  config module: present\n'
     else
         printf '  config module: MISSING\n'
-        missing_required+=("installed config module: $installed_config")
     fi
     printf '    path: %s\n' "$installed_config"
     printf '    metadata: %s\n\n' "$(metadata_status_for "$installed_config")"
 
     printf 'Runtime\n'
-    printf '  KWin loaded: %s\n' "$(kwin_loaded_status)"
-    printf '  primary log: %s (%s)\n' "$primary_log" "$primary_log_marker"
-    printf '  kwin log: %s (%s)\n\n' "$kwin_log" "$kwin_log_marker"
-
-    printf 'Stale artifacts expected absent\n'
-    local stale_count=0
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        if path_present "$target"; then
-            printf '  present: %s\n' "$target"
-            stale_count=$((stale_count + 1))
-        fi
-    done < <(stale_targets)
-    if [ "$stale_count" -eq 0 ]; then
-        printf '  none\n'
-    fi
-    printf '\n'
-
-    printf 'Stale user traces expected absent\n'
-    local stale_trace_count=0
-    while IFS= read -r target; do
-        [ -n "$target" ] || continue
-        if path_present "$target"; then
-            printf '  present: %s\n' "$target"
-            stale_trace_count=$((stale_trace_count + 1))
-        fi
-    done < <(stale_user_trace_paths)
-    if [ "$stale_trace_count" -eq 0 ]; then
-        printf '  none\n'
-    fi
-    printf '\n'
-
-    printf 'Stale KWin config entries expected absent\n'
-    local stale_config_entries
-    stale_config_entries="$(stale_kwin_config_entries)"
-    if [ -n "$stale_config_entries" ]; then
-        printf '%s\n' "$stale_config_entries" | sed 's/^/  present: /'
-    else
-        printf '  none\n'
-    fi
-    printf '\n'
+    printf '  KWin loaded: %s\n\n' "$(kwin_loaded_status)"
 
     printf 'Summary\n'
-    if [ "${#missing_required[@]}" -eq 0 ]; then
-        printf '  missing required artifacts: none\n'
+    if path_present "$installed_plugin" && path_present "$installed_config"; then
+        printf '  installed files: complete\n'
+    elif path_present "$installed_plugin" || path_present "$installed_config"; then
+        printf '  installed files: incomplete\n'
     else
-        printf '  missing required artifacts:\n'
-        local item
-        for item in "${missing_required[@]}"; do
-            printf '    - %s\n' "$item"
-        done
+        printf '  installed files: absent\n'
     fi
 
     if [ "$built_marker" != '<missing>' ] && [ "$installed_marker" != '<missing>' ] && [ "$built_marker" != "$installed_marker" ]; then
@@ -654,34 +295,15 @@ status_effect() {
     else
         printf '  version mismatch: none\n'
     fi
-
-    local log_mismatch=0
-    if [[ "$primary_log_marker" == kwin-clicktile_build=* ]] && [ "$installed_marker" != '<missing>' ] && [ "$primary_log_marker" != "$installed_marker" ]; then
-        printf '  latest primary log marker differs from installed: %s\n' "$primary_log_marker"
-        printf '  runtime stale: KWin last logged %s while installed file is %s\n' "$primary_log_marker" "$installed_marker"
-        printf '  suggested action: restart KWin or log out/in; unload/load may keep the old shared object mapped\n'
-        log_mismatch=1
-    fi
-    if [[ "$kwin_log_marker" == kwin-clicktile_build=* ]] && [ "$installed_marker" != '<missing>' ] && [ "$kwin_log_marker" != "$installed_marker" ]; then
-        printf '  latest kwin log marker differs from installed: %s\n' "$kwin_log_marker"
-        printf '  runtime stale: KWin last logged %s while installed file is %s\n' "$kwin_log_marker" "$installed_marker"
-        printf '  suggested action: restart KWin or log out/in; unload/load may keep the old shared object mapped\n'
-        log_mismatch=1
-    fi
-    if [ "$log_mismatch" -eq 0 ]; then
-        printf '  latest log marker mismatch: none observed\n'
-    fi
 }
 
 usage() {
     cat <<EOF
-Usage: $0 [--install|--uninstall|--status|--cleanup-traces]
+Usage: $0 [--install|--uninstall|--status]
 
 Without an argument, this toggles based on the current machine state:
   installed   -> uninstall
   not present -> build, install, and load
-
-Trace cleanup deletes old experiment logs/state and stale KWin config entries.
 EOF
 }
 
@@ -694,9 +316,6 @@ case "${1:-}" in
         ;;
     --status)
         status_effect
-        ;;
-    --cleanup-traces)
-        cleanup_stale_traces
         ;;
     -h|--help)
         usage

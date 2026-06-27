@@ -4,7 +4,6 @@
 #include "effect/effect.h"
 #include "input.h"
 
-#include <QFile>
 #include <QPointer>
 #include <QSet>
 #include <QString>
@@ -32,7 +31,7 @@ struct TileSelection {
     bool operator==(const TileSelection &) const = default;
 };
 
-class Effect : public KWin::Effect
+class Effect final : public KWin::Effect
 {
     Q_OBJECT
 
@@ -51,18 +50,13 @@ public:
                      const KWin::Region &deviceRegion,
                      KWin::LogicalOutput *screen) override;
     void postPaintScreen() override;
-    void prePaintWindow(KWin::RenderView *view, KWin::EffectWindow *window, KWin::WindowPrePaintData &data) override;
-    void paintWindow(const KWin::RenderTarget &renderTarget,
-                     const KWin::RenderViewport &viewport,
-                     KWin::EffectWindow *window,
-                     int mask,
-                     const KWin::Region &deviceRegion,
-                     KWin::WindowPaintData &data) override;
     bool isActive() const override;
     bool blocksDirectScanout() const override;
 
 private:
     friend class InputFilter;
+
+    void reloadConfig();
 
     // Input and native drag tracking.
     bool filterPointerMotion(KWin::PointerMotionEvent *event);
@@ -89,7 +83,7 @@ private:
 
     // Overlay rendering.
     void updateOverlayViews();
-    void drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion);
+    void drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion);
     bool drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF &rect, const QColor &color);
     int drawGridGeometry(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen);
 
@@ -97,14 +91,12 @@ private:
     KWin::LogicalOutput *outputForPoint(const QPointF &point) const;
     KWin::RectF workAreaForOutput(KWin::LogicalOutput *output) const;
     OutputSettings settingsForOutput(KWin::LogicalOutput *output) const;
-    Tile cellAt(KWin::LogicalOutput *output, const QPointF &point) const;
+    Tile cellAt(KWin::LogicalOutput *output, const OutputSettings &settings, const QPointF &point) const;
     KWin::RectF cellRectForOutput(KWin::LogicalOutput *output, const OutputSettings &settings, const Tile &cell) const;
     bool shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const;
     std::optional<KWin::RectF> currentSelectionRect() const;
-    QString overlayQmlPath() const;
 
     // Diagnostics.
-    void openLogFile();
     void log(const QString &message);
     QString describeOutput(KWin::LogicalOutput *output) const;
     QString describeWindow(KWin::EffectWindow *window) const;
@@ -132,7 +124,6 @@ private:
     std::optional<KWin::RectF> m_livePreviewRestoreRect;
     std::optional<KWin::RectF> m_livePreviewLastRect;
     QString m_pendingSnapReason;
-    QFile m_logFile;
     bool m_sawRightPress = false;
     bool m_snapActive = false;
     bool m_suppressNextRightRelease = false;

@@ -19,7 +19,6 @@ constexpr const char *BuildTag = "kwin-clicktile_build=0.6.9";
 
 Effect::Effect()
 {
-    openLogFile();
     log(QStringLiteral("build_marker %1").arg(QString::fromLatin1(BuildTag)));
     m_config = openKWinConfig();
     m_configWatcher = KConfigWatcher::create(m_config);
@@ -29,7 +28,7 @@ Effect::Effect()
             reconfigure(ReconfigureAll);
         }
     });
-    reconfigure(ReconfigureAll);
+    reloadConfig();
 
     log(QStringLiteral("overlay_renderer type=passive_paint_screen"));
 
@@ -78,7 +77,11 @@ bool Effect::enabledByDefault()
 void Effect::reconfigure(ReconfigureFlags flags)
 {
     KWin::Effect::reconfigure(flags);
+    reloadConfig();
+}
 
+void Effect::reloadConfig()
+{
     if (!m_config) {
         m_config = openKWinConfig();
     }

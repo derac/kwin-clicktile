@@ -186,19 +186,4 @@ void Effect::finishLivePreview(bool restore, const QString &reason)
                  describeRect(window->frameGeometry())));
 }
 
-void Effect::prePaintWindow(KWin::RenderView *view, KWin::EffectWindow *window, KWin::WindowPrePaintData &data)
-{
-    KWin::effects->prePaintWindow(view, window, data);
-}
-
-void Effect::paintWindow(const KWin::RenderTarget &renderTarget,
-                         const KWin::RenderViewport &viewport,
-                         KWin::EffectWindow *window,
-                         int mask,
-                         const KWin::Region &deviceRegion,
-                         KWin::WindowPaintData &data)
-{
-    KWin::effects->paintWindow(renderTarget, viewport, window, mask, deviceRegion, data);
-}
-
 } // namespace Tiles

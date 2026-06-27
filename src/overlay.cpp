@@ -9,7 +9,6 @@
 #include "opengl/glvertexbuffer.h"
 
 #include <QVector2D>
-#include <QStringList>
 
 #include <array>
 #include <algorithm>
@@ -49,35 +48,6 @@ std::array<QVector2D, 6> verticesForRect(const KWin::RectF &rect)
 QString glEnabled(GLboolean enabled)
 {
     return enabled ? QStringLiteral("true") : QStringLiteral("false");
-}
-
-QString glErrorName(GLenum error)
-{
-    switch (error) {
-    case GL_NO_ERROR:
-        return QStringLiteral("none");
-    case GL_INVALID_ENUM:
-        return QStringLiteral("invalid_enum");
-    case GL_INVALID_VALUE:
-        return QStringLiteral("invalid_value");
-    case GL_INVALID_OPERATION:
-        return QStringLiteral("invalid_operation");
-    case GL_INVALID_FRAMEBUFFER_OPERATION:
-        return QStringLiteral("invalid_framebuffer_operation");
-    case GL_OUT_OF_MEMORY:
-        return QStringLiteral("out_of_memory");
-    default:
-        return QStringLiteral("0x%1").arg(static_cast<uint>(error), 0, 16);
-    }
-}
-
-QString drainGlErrors()
-{
-    QStringList errors;
-    for (GLenum error = glGetError(); error != GL_NO_ERROR; error = glGetError()) {
-        errors << glErrorName(error);
-    }
-    return errors.isEmpty() ? QStringLiteral("none") : errors.join(QLatin1Char('|'));
 }
 
 QString glIntRect(GLenum name)
@@ -166,7 +136,7 @@ void Effect::paintScreen(const KWin::RenderTarget &renderTarget,
         return;
     }
 
-    drawOverlay(renderTarget, viewport, screen, mask, deviceRegion);
+    drawOverlay(viewport, screen, mask, deviceRegion);
 }
 
 void Effect::postPaintScreen()
@@ -185,10 +155,8 @@ void Effect::updateOverlayViews()
     }
 }
 
-void Effect::drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion)
+void Effect::drawOverlay(const KWin::RenderViewport &viewport, KWin::LogicalOutput *screen, int mask, const KWin::Region &deviceRegion)
 {
-    Q_UNUSED(renderTarget)
-
     if (!KWin::effects->isOpenGLCompositing()) {
         if (!m_loggedNoOverlayRenderer) {
             m_loggedNoOverlayRenderer = true;
@@ -240,7 +208,6 @@ void Effect::drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::Ren
                 .arg(glInteger(GL_CURRENT_PROGRAM)));
     }
 
-    const QString errorsBefore = drainGlErrors();
     GLint previousSrcRgb = GL_ONE;
     GLint previousDstRgb = GL_ZERO;
     GLint previousSrcAlpha = GL_ONE;
@@ -275,16 +242,13 @@ void Effect::drawOverlay(const KWin::RenderTarget &renderTarget, const KWin::Ren
     restoreGlCapability(GL_STENCIL_TEST, stencilWasEnabled);
     restoreGlCapability(GL_CULL_FACE, cullWasEnabled);
 
-    const QString errorsAfter = drainGlErrors();
     if (logThisPaint) {
-        log(QStringLiteral("overlay_draw_result rectangles=%1 shader_bound=%2 program_during=%3 program_after=%4 errors_before=%5 errors_after=%6 gl_viewport_after=%7 gl_scissor_box_after=%8")
+        log(QStringLiteral("overlay_draw_result rectangles=%1 shader_bound=%2 program_during=%3 program_after=%4 gl_viewport_after=%5 gl_scissor_box_after=%6")
                 .arg(rectanglesDrawn)
                 .arg(shaderBound ? QStringLiteral("true") : QStringLiteral("false"))
                 .arg(programDuringDraw)
                 .arg(glInteger(GL_CURRENT_PROGRAM))
-                .arg(errorsBefore,
-                     errorsAfter,
-                     glIntRect(GL_VIEWPORT),
+                .arg(glIntRect(GL_VIEWPORT),
                      glIntRect(GL_SCISSOR_BOX)));
     }
 }
@@ -356,11 +320,6 @@ bool Effect::drawGlRect(const KWin::RenderViewport &viewport, const KWin::RectF 
     vbo->setVertices(vertices);
     vbo->render(GL_TRIANGLES);
     return true;
-}
-
-QString Effect::overlayQmlPath() const
-{
-    return QString();
 }
 
 } // namespace Tiles

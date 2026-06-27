@@ -1,6 +1,6 @@
 # kwin-clicktile
 
-Mouse-driven WindowGrid/Snapdragin-style tiling for KWin on Wayland.
+Mouse-driven grid tiling for KWin on Wayland.
 
 `kwin-clicktile` is a C++ KWin effect. While you are dragging a window by its
 titlebar, right-click starts a tile selection overlay. Move across the monitor
@@ -20,7 +20,7 @@ Use the root script for both install and uninstall:
 
 The script checks the current machine state. If `kwin-clicktile` is not
 installed, it builds, installs, and asks KWin to load it. If it is already
-installed, it unloads and removes it, restoring any files it backed up.
+installed, it unloads KWin and removes the installed plugin files.
 
 Explicit modes are also available:
 
@@ -55,7 +55,6 @@ Settings:
 Logs:
 
 ```sh
-tail -f ~/.local/state/kwin-clicktile/effect/events.log
 journalctl -b -f | grep -i kwin-clicktile
 ```
 
@@ -72,6 +71,5 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.unloadEffect kwin_clicktile
 - `src/tiles.cpp`: tile selection, output geometry, and final placement
 - `src/overlay.cpp`: passive paint-screen grid overlay
 - `src/settings.*`: KWin config keys, defaults, and monitor settings
-- `src/log.cpp`: diagnostics
+- `src/log.cpp`: journald diagnostics
 - `kcm/`: System Settings module
-The Snapdragin reference clone is kept under `.tmp/snapdragin` when present.

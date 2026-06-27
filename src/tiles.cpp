@@ -61,7 +61,7 @@ bool Effect::beginSelection(const QPointF &point)
     m_anchorSettings = settingsForOutput(m_anchorOutput);
     m_activeOutput = m_anchorOutput;
     m_activeSettings = m_anchorSettings;
-    const Tile anchor = cellAt(m_anchorOutput, point);
+    const Tile anchor = cellAt(m_anchorOutput, m_anchorSettings, point);
     m_selection = TileSelection{anchor, anchor};
     m_snapActive = true;
     m_loggedNoOverlayRenderer = false;
@@ -101,7 +101,7 @@ void Effect::updateSelection(const QPointF &point)
 
     const OutputSettings nextSettings = settingsForOutput(output);
     if (!m_selection) {
-        const Tile cell = cellAt(output, point);
+        const Tile cell = cellAt(output, nextSettings, point);
         m_selection = TileSelection{cell, cell};
         m_anchorOutput = output;
         m_anchorSettings = nextSettings;
@@ -114,7 +114,7 @@ void Effect::updateSelection(const QPointF &point)
 
     const bool outputChanged = output != m_activeOutput;
     TileSelection next = *m_selection;
-    next.focus = cellAt(output, point);
+    next.focus = cellAt(output, nextSettings, point);
     if (!outputChanged && next == m_selection) {
         return;
     }
@@ -325,10 +325,10 @@ OutputSettings Effect::settingsForOutput(KWin::LogicalOutput *output) const
     return readOutputSettings(m_config ? m_config : openKWinConfig(), key, label, output->geometryF());
 }
 
-Tile Effect::cellAt(KWin::LogicalOutput *output, const QPointF &point) const
+Tile Effect::cellAt(KWin::LogicalOutput *output, const OutputSettings &settings, const QPointF &point) const
 {
     const KWin::RectF area = workAreaForOutput(output);
-    const TileGrid grid = settingsForOutput(output).grid;
+    const TileGrid grid = sanitizeGrid(settings.grid.columns, settings.grid.rows);
 
     if (area.isEmpty()) {
         return Tile{0, 0};

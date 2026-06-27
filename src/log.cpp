@@ -3,44 +3,15 @@
 #include "core/output.h"
 #include "effect/effectwindow.h"
 
-#include <QDateTime>
 #include <QDebug>
-#include <QDir>
-#include <QStandardPaths>
-#include <QTextStream>
+#include <QStringList>
 
 namespace Tiles
 {
 
-void Effect::openLogFile()
-{
-    const QString stateRoot = QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation);
-    const QString baseDir = stateRoot.isEmpty()
-        ? QDir::homePath() + QStringLiteral("/.local/state")
-        : stateRoot;
-    const QString logDir = baseDir + QStringLiteral("/kwin-clicktile/effect");
-
-    QDir().mkpath(logDir);
-    m_logFile.setFileName(logDir + QStringLiteral("/events.log"));
-    if (!m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        qWarning() << "kwin-clicktile: failed to open log file" << m_logFile.fileName() << m_logFile.errorString();
-    } else {
-        qInfo().noquote() << "kwin-clicktile: log_file path=" << m_logFile.fileName();
-    }
-}
-
 void Effect::log(const QString &message)
 {
-    const QString line = QStringLiteral("%1\t%2")
-        .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs), message);
-
     qInfo().noquote() << "kwin-clicktile:" << message;
-
-    if (m_logFile.isOpen()) {
-        QTextStream stream(&m_logFile);
-        stream << line << Qt::endl;
-        m_logFile.flush();
-    }
 }
 
 QString Effect::describeOutput(KWin::LogicalOutput *output) const

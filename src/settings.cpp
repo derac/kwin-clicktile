@@ -6,7 +6,6 @@
 #include <KConfigGroup>
 
 #include <algorithm>
-#include <optional>
 
 namespace Tiles
 {
@@ -35,43 +34,10 @@ QString outputNameFromKey(const QString &key)
     return name.isEmpty() ? key.trimmed() : name;
 }
 
-QString outputNameToken(const QString &key)
+QString outputSettingsToken(const QString &key)
 {
     const QString name = outputNameFromKey(key);
-    return name.isEmpty() ? QString() : outputToken(name);
-}
-
-std::optional<QString> tokenFromLabelEntry(const QString &entry)
-{
-    static const QString prefix = QStringLiteral("Output_");
-    static const QString suffix = QStringLiteral("_Label");
-
-    if (!entry.startsWith(prefix) || !entry.endsWith(suffix)) {
-        return std::nullopt;
-    }
-
-    return entry.mid(prefix.size(), entry.size() - prefix.size() - suffix.size());
-}
-
-std::optional<QString> storedTokenForOutputName(const KConfigGroup &group, const QString &name)
-{
-    if (name.isEmpty()) {
-        return std::nullopt;
-    }
-
-    for (const QString &entry : group.keyList()) {
-        const auto token = tokenFromLabelEntry(entry);
-        if (!token) {
-            continue;
-        }
-
-        const QString storedLabel = group.readEntry(entry, QString());
-        if (storedLabel == name || storedLabel.startsWith(name + QStringLiteral(" - "))) {
-            return token;
-        }
-    }
-
-    return std::nullopt;
+    return outputToken(name.isEmpty() ? key : name);
 }
 
 bool hasGridForToken(const KConfigGroup &group, const QString &token)
@@ -95,29 +61,6 @@ void writeGridForToken(KConfigGroup &group, const QString &token, const OutputSe
     group.writeEntry(outputColumnsEntry(token), settings.grid.columns, KConfigBase::Notify);
     group.writeEntry(outputRowsEntry(token), settings.grid.rows, KConfigBase::Notify);
     group.writeEntry(outputLabelEntry(token), settings.label, KConfigBase::Notify);
-}
-
-QColor migrateLegacyBorderColor(const QColor &color)
-{
-    const QColor legacyWhiteDefault(255, 255, 255, 135);
-    const QColor legacyPaleBlueDefault(143, 193, 255, 42);
-    const QColor legacyBlueDefault(42, 143, 193, 120);
-    const QColor legacyStrongBlueDefault(24, 124, 255, 170);
-    const bool whiteish = color.isValid()
-        && color.alpha() > 0
-        && color.red() >= 220
-        && color.green() >= 220
-        && color.blue() >= 220;
-
-    if (whiteish
-        || color == legacyWhiteDefault
-        || color == legacyPaleBlueDefault
-        || color == legacyBlueDefault
-        || color == legacyStrongBlueDefault) {
-        return defaultOverlayColors().selectionBorderColor;
-    }
-
-    return color;
 }
 
 } // namespace
@@ -204,7 +147,7 @@ OverlayColors readOverlayColors(const KSharedConfigPtr &config)
     return OverlayColors{
         group.readEntry("GridColor", defaults.gridColor),
         group.readEntry("SelectionColor", defaults.selectionColor),
-        migrateLegacyBorderColor(group.readEntry("SelectionBorderColor", defaults.selectionBorderColor)),
+        group.readEntry("SelectionBorderColor", defaults.selectionBorderColor),
     };
 }
 
@@ -218,58 +161,28 @@ void writeOverlayColors(const KSharedConfigPtr &config, const OverlayColors &set
 
 OutputSettings readOutputSettings(const KSharedConfigPtr &config, const QString &key, const QString &label, const QRectF &geometry)
 {
-    const QString token = outputToken(key);
+    const QString token = outputSettingsToken(key);
     const TileGrid defaults = defaultGridForGeometry(geometry);
     const KConfigGroup group(config, effectConfigGroupName());
-    const QString nameToken = outputNameToken(key);
-    const QString name = outputNameFromKey(key);
-
-    if (hasGridForToken(group, token)) {
-        return OutputSettings{
-            key,
-            token,
-            label,
-            readGridForToken(group, token, defaults),
-        };
-    }
-
-    if (hasGridForToken(group, nameToken)) {
-        return OutputSettings{
-            key,
-            nameToken,
-            label,
-            readGridForToken(group, nameToken, defaults),
-        };
-    }
-
-    if (const auto storedToken = storedTokenForOutputName(group, name); storedToken && hasGridForToken(group, *storedToken)) {
-        return OutputSettings{
-            key,
-            *storedToken,
-            label,
-            readGridForToken(group, *storedToken, defaults),
-        };
-    }
+    const QString previousToken = outputToken(key);
+    const QString readToken = hasGridForToken(group, token) || previousToken == token
+        ? token
+        : previousToken;
 
     return OutputSettings{
         key,
         token,
         label,
-        defaults,
+        readGridForToken(group, readToken, defaults),
     };
 }
 
 void writeOutputSettings(const KSharedConfigPtr &config, const OutputSettings &settings)
 {
     KConfigGroup group(config, effectConfigGroupName());
-    const QString token = settings.token.isEmpty() ? outputToken(settings.key) : settings.token;
+    const QString token = outputSettingsToken(settings.key);
 
     writeGridForToken(group, token, settings);
-
-    const QString nameToken = outputNameToken(settings.key);
-    if (nameToken != token) {
-        writeGridForToken(group, nameToken, settings);
-    }
 }
 
 } // namespace Tiles
