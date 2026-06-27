@@ -34,16 +34,15 @@ QString outputNameFromKey(const QString &key)
     return name.isEmpty() ? key.trimmed() : name;
 }
 
+QString outputToken(const QString &key)
+{
+    return QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex());
+}
+
 QString outputSettingsToken(const QString &key)
 {
     const QString name = outputNameFromKey(key);
     return outputToken(name.isEmpty() ? key : name);
-}
-
-bool hasGridForToken(const KConfigGroup &group, const QString &token)
-{
-    return !token.isEmpty()
-        && (group.hasKey(outputColumnsEntry(token)) || group.hasKey(outputRowsEntry(token)));
 }
 
 TileGrid readGridForToken(const KConfigGroup &group, const QString &token, const TileGrid &defaults)
@@ -76,11 +75,6 @@ QString outputKey(const QString &name, const QString &manufacturer, const QStrin
     parts << name.trimmed() << manufacturer.trimmed() << model.trimmed() << serialNumber.trimmed();
     parts.removeAll(QString());
     return parts.isEmpty() ? QStringLiteral("unknown-output") : parts.join(QLatin1Char('|'));
-}
-
-QString outputToken(const QString &key)
-{
-    return QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex());
 }
 
 QString outputLabel(const QString &name, const QString &manufacturer, const QString &model, const QString &serialNumber)
@@ -164,16 +158,11 @@ OutputSettings readOutputSettings(const KSharedConfigPtr &config, const QString 
     const QString token = outputSettingsToken(key);
     const TileGrid defaults = defaultGridForGeometry(geometry);
     const KConfigGroup group(config, effectConfigGroupName());
-    const QString previousToken = outputToken(key);
-    const QString readToken = hasGridForToken(group, token) || previousToken == token
-        ? token
-        : previousToken;
 
     return OutputSettings{
         key,
-        token,
         label,
-        readGridForToken(group, readToken, defaults),
+        readGridForToken(group, token, defaults),
     };
 }
 

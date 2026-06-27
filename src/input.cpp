@@ -13,7 +13,7 @@ bool Effect::filterPointerMotion(KWin::PointerMotionEvent *event)
         return false;
     }
 
-    if (m_snapActive) {
+    if (m_selection) {
         updateSelection(event->position);
         return true;
     }
@@ -32,7 +32,7 @@ bool Effect::filterPointerButton(KWin::PointerButtonEvent *event)
         return true;
     }
 
-    if (m_snapActive) {
+    if (m_selection) {
         if (event->button == Qt::LeftButton && event->state == KWin::PointerButtonState::Released) {
             finishSelection(event->position);
             return false;
@@ -74,7 +74,7 @@ void Effect::unwireWindow(KWin::EffectWindow *window)
         return;
     }
 
-    if (m_snapWindow == window) {
+    if (m_selection && m_selection->window == window) {
         cancelSelection();
     }
 
@@ -92,11 +92,7 @@ void Effect::onMoveResizeStarted(KWin::EffectWindow *window)
 
 void Effect::onMoveResizeStepped(KWin::EffectWindow *window, const KWin::RectF &)
 {
-    if (window != m_dragWindow) {
-        return;
-    }
-
-    if (m_snapActive) {
+    if (m_selection && m_selection->window == window) {
         moveWindowToSelection();
         KWin::effects->addRepaintFull();
     }

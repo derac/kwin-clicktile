@@ -22,13 +22,6 @@ struct Tile {
     bool operator==(const Tile &) const = default;
 };
 
-struct TileSelection {
-    Tile anchor;
-    Tile focus;
-
-    bool operator==(const TileSelection &) const = default;
-};
-
 class Effect final : public KWin::Effect
 {
     Q_OBJECT
@@ -47,7 +40,6 @@ public:
                      int mask,
                      const KWin::Region &deviceRegion,
                      KWin::LogicalOutput *screen) override;
-    void postPaintScreen() override;
     bool isActive() const override;
     bool blocksDirectScanout() const override;
 
@@ -71,7 +63,7 @@ private:
     void finishSelection(const QPointF &point);
     void cancelSelection();
     void clearSelectionState();
-    void endNativeDragForSelection();
+    bool endNativeDragForSelection(KWin::EffectWindow *window);
     void moveWindowToSelection();
 
     // Overlay rendering.
@@ -89,18 +81,24 @@ private:
     bool shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const;
     std::optional<KWin::RectF> currentSelectionRect() const;
 
+    struct SelectionEndpoint {
+        QPointer<KWin::LogicalOutput> output;
+        OutputSettings settings;
+        Tile tile;
+    };
+
+    struct SelectionSession {
+        QPointer<KWin::EffectWindow> window;
+        SelectionEndpoint anchor;
+        SelectionEndpoint focus;
+    };
+
     QPointer<KWin::EffectWindow> m_dragWindow;
-    QPointer<KWin::EffectWindow> m_snapWindow;
-    QPointer<KWin::LogicalOutput> m_anchorOutput;
-    QPointer<KWin::LogicalOutput> m_activeOutput;
     std::unique_ptr<InputFilter> m_inputFilter;
     KSharedConfigPtr m_config;
     KConfigWatcher::Ptr m_configWatcher;
     OverlayColors m_colors = defaultOverlayColors();
-    OutputSettings m_anchorSettings;
-    OutputSettings m_activeSettings;
-    std::optional<TileSelection> m_selection;
-    bool m_snapActive = false;
+    std::optional<SelectionSession> m_selection;
     bool m_suppressNextRightRelease = false;
 };
 

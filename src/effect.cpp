@@ -13,7 +13,7 @@ namespace Tiles
 namespace
 {
 
-[[gnu::used]] const char BuildTag[] = "kwin-clicktile_build=0.6.9";
+[[gnu::used]] const char BuildTag[] = "kwin-clicktile_build=1.0";
 
 } // namespace
 
@@ -35,7 +35,7 @@ Effect::Effect()
     connect(KWin::effects, &KWin::EffectsHandler::windowDeleted, this, &Effect::unwireWindow);
     connect(KWin::effects, &KWin::EffectsHandler::windowClosed, this, &Effect::unwireWindow);
     connect(KWin::effects, &KWin::EffectsHandler::screenRemoved, this, [this](KWin::LogicalOutput *screen) {
-        if (m_anchorOutput == screen || m_activeOutput == screen) {
+        if (m_selection && (m_selection->anchor.output == screen || m_selection->focus.output == screen)) {
             cancelSelection();
         }
     });
@@ -78,23 +78,25 @@ void Effect::reloadConfig()
     }
     m_config->reparseConfiguration();
     m_colors = readOverlayColors(m_config);
-    if (m_anchorOutput) {
-        m_anchorSettings = settingsForOutput(m_anchorOutput);
-    }
-    if (m_activeOutput) {
-        m_activeSettings = settingsForOutput(m_activeOutput);
+    if (m_selection) {
+        if (m_selection->anchor.output) {
+            m_selection->anchor.settings = settingsForOutput(m_selection->anchor.output);
+        }
+        if (m_selection->focus.output) {
+            m_selection->focus.settings = settingsForOutput(m_selection->focus.output);
+        }
     }
     updateOverlayViews();
 }
 
 bool Effect::isActive() const
 {
-    return m_snapActive;
+    return m_selection.has_value();
 }
 
 bool Effect::blocksDirectScanout() const
 {
-    return m_snapActive;
+    return m_selection.has_value();
 }
 
 } // namespace Tiles

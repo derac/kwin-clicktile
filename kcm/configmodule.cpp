@@ -173,7 +173,6 @@ public:
 
             Tiles::OutputSettings settings;
             settings.key = labelItem->data(Qt::UserRole).toString();
-            settings.token = Tiles::outputToken(settings.key);
             settings.label = labelItem->text();
             settings.grid = Tiles::sanitizeGrid(columns->value(), rows->value());
             Tiles::writeOutputSettings(config, settings);

@@ -197,9 +197,6 @@ kwin-clicktile installed.
 Configure:
   System Settings > Window Management > Desktop Effects > kwin-clicktile
 
-Logs:
-  journalctl -b -f | grep -i kwin-clicktile
-
 Run again to uninstall:
   "$repo_root/install_uninstall.sh"
 EOF

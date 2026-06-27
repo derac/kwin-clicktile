@@ -66,7 +66,7 @@ KWin::RectF mapOverlayRect(const KWin::RenderViewport &viewport, const KWin::Rec
 
 void Effect::prePaintScreen(KWin::ScreenPrePaintData &data)
 {
-    if (m_snapActive) {
+    if (m_selection) {
         data.mask |= KWin::Effect::PAINT_SCREEN_TRANSFORMED;
     }
 
@@ -81,25 +81,16 @@ void Effect::paintScreen(const KWin::RenderTarget &renderTarget,
 {
     KWin::effects->paintScreen(renderTarget, viewport, mask, deviceRegion, screen);
 
-    if (!m_snapActive || !screen || !m_selection || !shouldPaintOverlayForOutput(screen)) {
+    if (!m_selection || !screen || !shouldPaintOverlayForOutput(screen)) {
         return;
     }
 
     drawOverlay(viewport, screen);
 }
 
-void Effect::postPaintScreen()
-{
-    if (m_snapActive) {
-        KWin::effects->addRepaintFull();
-    }
-
-    KWin::effects->postPaintScreen();
-}
-
 void Effect::updateOverlayViews()
 {
-    if (m_snapActive) {
+    if (m_selection) {
         KWin::effects->addRepaintFull();
     }
 }
@@ -171,9 +162,14 @@ void Effect::drawGridGeometry(const KWin::RenderViewport &viewport, KWin::Logica
     drawGlRect(viewport, KWin::RectF(area.left(), area.top(), line, area.height()), gridColor);
     drawGlRect(viewport, KWin::RectF(area.right() - line, area.top(), line, area.height()), gridColor);
 
-    const OutputSettings settings = screen == m_anchorOutput
-        ? m_anchorSettings
-        : (screen == m_activeOutput ? m_activeSettings : settingsForOutput(screen));
+    OutputSettings settings = settingsForOutput(screen);
+    if (m_selection) {
+        if (screen == m_selection->anchor.output) {
+            settings = m_selection->anchor.settings;
+        } else if (screen == m_selection->focus.output) {
+            settings = m_selection->focus.settings;
+        }
+    }
     const TileGrid grid = sanitizeGrid(settings.grid.columns, settings.grid.rows);
 
     for (int column = 1; column < grid.columns; ++column) {

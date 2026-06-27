@@ -25,14 +25,12 @@ struct OverlayColors {
 
 struct OutputSettings {
     QString key;
-    QString token;
     QString label;
     TileGrid grid;
 };
 
 QString effectConfigGroupName();
 QString outputKey(const QString &name, const QString &manufacturer, const QString &model, const QString &serialNumber);
-QString outputToken(const QString &key);
 QString outputLabel(const QString &name, const QString &manufacturer, const QString &model, const QString &serialNumber);
 TileGrid sanitizeGrid(int columns, int rows);
 TileGrid defaultGridForGeometry(const QRectF &geometry);

@@ -11,7 +11,7 @@
         "Icon": "preferences-system-windows",
         "License": "MIT",
         "Name": "kwin-clicktile",
-        "Version": "0.6.9"
+        "Version": "1.0"
     },
     "X-KDE-ConfigModule": "kwin_clicktile_config"
 }

@@ -52,12 +52,6 @@ Settings:
 3. Move across the grid.
 4. Release left mouse, or press right mouse again, to place the window.
 
-Logs:
-
-```sh
-journalctl -b -f | grep -i kwin-clicktile
-```
-
 Emergency unload:
 
 ```sh

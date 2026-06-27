@@ -41,20 +41,26 @@ bool Effect::beginSelection(const QPointF &point)
         return false;
     }
 
-    m_snapWindow = m_dragWindow;
-    m_anchorOutput = outputForPoint(point);
-    if (!m_anchorOutput) {
-        clearSelectionState();
+    QPointer<KWin::EffectWindow> snapWindow = m_dragWindow;
+    KWin::LogicalOutput *anchorOutput = outputForPoint(point);
+    if (!anchorOutput) {
         return false;
     }
 
-    m_anchorSettings = settingsForOutput(m_anchorOutput);
-    m_activeOutput = m_anchorOutput;
-    m_activeSettings = m_anchorSettings;
-    const Tile anchor = cellAt(m_anchorOutput, m_anchorSettings, point);
-    m_selection = TileSelection{anchor, anchor};
-    m_snapActive = true;
-    endNativeDragForSelection();
+    const OutputSettings anchorSettings = settingsForOutput(anchorOutput);
+    const Tile anchorTile = cellAt(anchorOutput, anchorSettings, point);
+    if (!endNativeDragForSelection(snapWindow)) {
+        return false;
+    }
+    if (!snapWindow || !snapWindow->window()) {
+        return false;
+    }
+
+    m_selection = SelectionSession{
+        snapWindow,
+        SelectionEndpoint{anchorOutput, anchorSettings, anchorTile},
+        SelectionEndpoint{anchorOutput, anchorSettings, anchorTile},
+    };
 
     moveWindowToSelection();
     updateOverlayViews();
@@ -63,7 +69,7 @@ bool Effect::beginSelection(const QPointF &point)
 
 void Effect::updateSelection(const QPointF &point)
 {
-    if (!m_snapActive || !m_snapWindow) {
+    if (!m_selection || !m_selection->window) {
         return;
     }
 
@@ -73,35 +79,20 @@ void Effect::updateSelection(const QPointF &point)
     }
 
     const OutputSettings nextSettings = settingsForOutput(output);
-    if (!m_selection) {
-        const Tile cell = cellAt(output, nextSettings, point);
-        m_selection = TileSelection{cell, cell};
-        m_anchorOutput = output;
-        m_anchorSettings = nextSettings;
-        m_activeOutput = output;
-        m_activeSettings = nextSettings;
-        moveWindowToSelection();
-        updateOverlayViews();
+    const Tile nextTile = cellAt(output, nextSettings, point);
+    const bool outputChanged = output != m_selection->focus.output;
+    if (!outputChanged && nextTile == m_selection->focus.tile) {
         return;
     }
 
-    const bool outputChanged = output != m_activeOutput;
-    TileSelection next = *m_selection;
-    next.focus = cellAt(output, nextSettings, point);
-    if (!outputChanged && next == m_selection) {
-        return;
-    }
-
-    m_activeOutput = output;
-    m_activeSettings = nextSettings;
-    m_selection = next;
+    m_selection->focus = SelectionEndpoint{output, nextSettings, nextTile};
     moveWindowToSelection();
     updateOverlayViews();
 }
 
 void Effect::finishSelection(const QPointF &point)
 {
-    if (!m_snapActive) {
+    if (!m_selection) {
         return;
     }
 
@@ -113,7 +104,7 @@ void Effect::finishSelection(const QPointF &point)
 
 void Effect::cancelSelection()
 {
-    if (!m_snapActive && !m_snapWindow) {
+    if (!m_selection) {
         return;
     }
 
@@ -124,13 +115,7 @@ void Effect::cancelSelection()
 
 void Effect::clearSelectionState()
 {
-    m_snapActive = false;
-    m_snapWindow.clear();
-    m_anchorOutput.clear();
-    m_activeOutput.clear();
     m_selection.reset();
-    m_anchorSettings = OutputSettings{};
-    m_activeSettings = OutputSettings{};
 }
 
 KWin::LogicalOutput *Effect::outputForPoint(const QPointF &point) const
@@ -170,7 +155,6 @@ OutputSettings Effect::settingsForOutput(KWin::LogicalOutput *output) const
     if (!output) {
         return OutputSettings{
             QStringLiteral("unknown-output"),
-            outputToken(QStringLiteral("unknown-output")),
             QStringLiteral("Unknown monitor"),
             TileGrid{2, 2},
         };
@@ -222,11 +206,11 @@ KWin::RectF Effect::cellRectForOutput(KWin::LogicalOutput *output, const OutputS
 
 bool Effect::shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const
 {
-    if (!output || !m_snapActive || !m_selection) {
+    if (!output || !m_selection) {
         return false;
     }
 
-    if (output == m_anchorOutput || output == m_activeOutput) {
+    if (output == m_selection->anchor.output || output == m_selection->focus.output) {
         return true;
     }
 
@@ -236,12 +220,12 @@ bool Effect::shouldPaintOverlayForOutput(KWin::LogicalOutput *output) const
 
 std::optional<KWin::RectF> Effect::currentSelectionRect() const
 {
-    if (!m_snapActive || !m_anchorOutput || !m_activeOutput || !m_selection) {
+    if (!m_selection || !m_selection->anchor.output || !m_selection->focus.output) {
         return std::nullopt;
     }
 
-    const KWin::RectF anchorRect = cellRectForOutput(m_anchorOutput, m_anchorSettings, m_selection->anchor);
-    const KWin::RectF focusRect = cellRectForOutput(m_activeOutput, m_activeSettings, m_selection->focus);
+    const KWin::RectF anchorRect = cellRectForOutput(m_selection->anchor.output, m_selection->anchor.settings, m_selection->anchor.tile);
+    const KWin::RectF focusRect = cellRectForOutput(m_selection->focus.output, m_selection->focus.settings, m_selection->focus.tile);
     if (anchorRect.isEmpty() || focusRect.isEmpty()) {
         return std::nullopt;
     }
