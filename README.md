@@ -14,6 +14,19 @@ Takes inspiration from the Windows program WindowGrid.
 
 ## Build And Toggle
 
+You will need the following packages to run the build process on install. 
+
+```bash
+# Debian / Ubuntu / KDE Neon (Plasma 6)
+sudo apt install cmake g++ extra-cmake-modules kwin-dev qt6-base-dev-tools libepoxy-dev
+
+# Fedora (Plasma 6)
+sudo dnf install cmake gcc-c++ extra-cmake-modules kwin-devel libepoxy-dev qt6-qtbase-private-devel
+
+# Arch Linux (Plasma 6)
+sudo pacman -S cmake extra-cmake-modules kwin qt6-base
+```
+
 Use the root script for both install and uninstall:
 
 ```sh
